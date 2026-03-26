@@ -551,7 +551,7 @@ function playStream(url, name, logo, channelId, startTimeUnix = null, archiveDat
                    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
     // Převedeme URL na tvou proxy
-    let finalUrl = url.replace('http://193.109.193.16:3000', WORKER_URL + '/stream');
+    let finalUrl = url.replace('http://94.241.90.115:8889', WORKER_URL + '/oneplay');
 
     // --- LOGIKA PRO ARCHIV (S OPRAVOU PŘECHODŮ) ---
     if (startTimeUnix) {
@@ -1199,8 +1199,7 @@ async function loadPlaylist() {
     try {
         const res = await fetch('playlist.m3u');
         const text = await res.text();
-        const lines = text.split('
-');
+        const lines = text.split('\n')
         const cont = document.getElementById('channels-container');
         cont.innerHTML = '';
         
