@@ -700,7 +700,7 @@ async function playNextProgram() {
         try {
             console.log("Data pro den nejsou v cache, stahuji z API...");
             // POZOR: Tady si uprav URL podle tvé skutečné cesty k API (např. /api/epg nebo server.php)
-            const res = await fetch(`/epg?id=${currentActiveChannelId}&date=${dayStr}`);
+            const res = await fetch(`${WORKER_URL}/epg-data?id=${encodeURIComponent(currentActiveChannelId)}&date=${dayStr}&full=true`);
             const newData = await res.json();
             if (newData && newData.length > 0) {
                 if (!epgCache[dayStr]) epgCache[dayStr] = {};
