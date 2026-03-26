@@ -551,7 +551,15 @@ function playStream(url, name, logo, channelId, startTimeUnix = null, archiveDat
                    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
     // Převedeme URL na tvou proxy
-    let finalUrl = url.replace('http://94.241.90.115:8889', WORKER_URL + '/oneplay');
+    // Najdi tento řádek a přepiš ho takto, aby to fungovalo vždy:
+let finalUrl;
+if (url.includes('http')) {
+    // Vezmeme vše, co je v URL za původní adresou a připojíme k workeru
+    const urlObj = new URL(url);
+    finalUrl = WORKER_URL + '/oneplay' + urlObj.pathname + urlObj.search;
+} else {
+    finalUrl = url;
+}
 
     // --- LOGIKA PRO ARCHIV (S OPRAVOU PŘECHODŮ) ---
     if (startTimeUnix) {
