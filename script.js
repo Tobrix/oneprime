@@ -551,15 +551,7 @@ function playStream(url, name, logo, channelId, startTimeUnix = null, archiveDat
                    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
     // Převedeme URL na tvou proxy
-    // Najdi tento řádek a přepiš ho takto, aby to fungovalo vždy:
-let finalUrl;
-if (url.includes('http')) {
-    // Vezmeme vše, co je v URL za původní adresou a připojíme k workeru
-    const urlObj = new URL(url);
-    finalUrl = WORKER_URL + '/oneplay' + urlObj.pathname + urlObj.search;
-} else {
-    finalUrl = url;
-}
+    let finalUrl = url.replace('http://94.241.90.115:8889', WORKER_URL + '/oneplay');
 
     // --- LOGIKA PRO ARCHIV (S OPRAVOU PŘECHODŮ) ---
     if (startTimeUnix) {
@@ -708,7 +700,7 @@ async function playNextProgram() {
         try {
             console.log("Data pro den nejsou v cache, stahuji z API...");
             // POZOR: Tady si uprav URL podle tvé skutečné cesty k API (např. /api/epg nebo server.php)
-            const res = await fetch(`${WORKER_URL}/epg-data?id=${encodeURIComponent(currentActiveChannelId)}&date=${dayStr}&full=true`);
+            const res = await fetch(`/epg?id=${currentActiveChannelId}&date=${dayStr}`);
             const newData = await res.json();
             if (newData && newData.length > 0) {
                 if (!epgCache[dayStr]) epgCache[dayStr] = {};
