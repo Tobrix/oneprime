@@ -1,112 +1,24 @@
-/* ============================================
-   PHONE — ONEPRIMETV Redesign 2026
-   ============================================ */
-
-@media only screen and (max-width: 767px) {
-
-    :root { --sidebar-w: 100vw; }
-
-    body, html, .app-layout {
-        height: 100dvh !important;
-        flex-direction: column !important;
-        overflow: hidden;
-    }
-
-    .player-area {
-        height: 56vw !important;
-        width: 100vw !important;
-        flex-shrink: 0;
-        z-index: 10;
-    }
-
-    .sidebar {
-        width: 100vw !important;
-        height: calc(100dvh - 56vw) !important;
-        border-left: none;
-        border-top: 1px solid var(--border);
-    }
-
-    .sidebar::before { display: none; }
-
-    /* Controls more compact on mobile */
-    .custom-controls {
-        padding: 14px 16px !important;
-    }
-
-    .overlay-header img { height: 32px !important; }
-    .header-text h2 { font-size: 1rem !important; }
-
-    .controls-main button,
-    .controls-main .control-btn {
-        width: 34px !important;
-        height: 34px !important;
-    }
-
-    #play-pause {
-        width: 38px !important;
-        height: 38px !important;
-    }
-
-    .skip-btn span { display: none !important; }
-    .skip-btn { padding: 0 10px !important; }
-
-    #current-quality-label { display: none; }
-
-    /* EPG overlay full screen on mobile */
-    #epg-grid-overlay {
-        position: fixed !important;
-        left: 0 !important;
-        right: 0 !important;
-        bottom: 0 !important;
-        height: 60vh !important;
-        border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
-        border-bottom: none !important;
-    }
-
-    .epg-channel-label {
-        width: 120px !important;
-    }
-
-    .epg-preview-popup {
-        display: none !important;
-    }
-
-    /* Sidebar header compact */
-    .sidebar-header {
-        padding: 12px 14px 10px !important;
-        gap: 8px !important;
-    }
-
-    .brand { font-size: 0.95rem !important; }
-
-    /* Channel items compact */
-    .channel-item {
-        padding: 8px 14px !important;
-    }
-
-    .channel-item img {
-        width: 34px !important;
-        height: 34px !important;
-    }
-
-    .channel-name { font-size: 0.82rem !important; }
-    .epg-now { font-size: 0.68rem !important; }
-
-    /* Volume on mobile */
-    .volume-slider-container.show {
-        width: 70px !important;
-    }
-
-    /* Program info compact */
-    #current-program-title { font-size: 0.9rem !important; }
+/* ── PHONE ───────────────────────────────── */
+@media(max-width:767px){
+  :root{--panel-w:100vw;}
+  #topbar{padding:16px 16px 0;}
+  #ch-name{font-size:.95rem;}
+  #ch-program{max-width:200px;}
+  #bottombar{padding:0 16px 20px;}
+  .play-btn{width:40px;height:40px;}
+  .icon-btn.sm{width:30px;height:30px;}
+  .icon-btn.sm svg{width:14px;height:14px;}
+  #vol-slider-wrap.open{width:70px;}
+  #live-text{display:none;}
+  #qual-label{display:none;}
+  .tap-indicator:first-of-type{left:16px;}
+  .tap-indicator:last-of-type{right:16px;}
+  #epg-sheet{height:68vh;}
+  #epg-ch-label{width:120px;}
+  #epg-prev-img{width:80px;height:45px;}
 }
 
-/* Landscape phone */
-@media only screen and (max-width: 767px) and (orientation: landscape) {
-    .player-area {
-        height: 100dvh !important;
-        width: 100vw !important;
-    }
-
-    .sidebar { display: none !important; }
+@media(max-width:767px) and (orientation:landscape){
+  #channels-panel{width:100vw;}
+  #epg-sheet{height:85vh;}
 }
