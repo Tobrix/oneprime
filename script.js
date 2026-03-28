@@ -1,7 +1,3 @@
-// ===== CLOUDFLARE WORKER URL - ZMĚŇ TUTO HODNOTU PO NASAZENÍ WORKERU =====
-const WORKER_URL = 'https://oneprime-proxy.tobias-kubanek.workers.dev';
-// ==========================================================================
-
 let hls;
 
 let isArchiveMode = false;
@@ -551,7 +547,7 @@ function playStream(url, name, logo, channelId, startTimeUnix = null, archiveDat
                    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
     // Převedeme URL na tvou proxy
-    let finalUrl = url.replace('http://94.241.90.115:8889', WORKER_URL + '/oneplay');
+    let finalUrl = url.replace('http://94.241.90.115:8889', '/oneplay');
 
     // --- LOGIKA PRO ARCHIV (S OPRAVOU PŘECHODŮ) ---
     if (startTimeUnix) {
@@ -1159,7 +1155,7 @@ setInterval(() => {
 
 async function fetchEPG(id) {
     try {
-        const response = await fetch(WORKER_URL + `/epg-data?id=${encodeURIComponent(id)}`);
+        const response = await fetch(`/epg-data?id=${encodeURIComponent(id)}`);
         const data = await response.json();
         
         // Najdeme prvek v sidebaru
@@ -1199,7 +1195,7 @@ async function loadPlaylist() {
     try {
         const res = await fetch('playlist.m3u');
         const text = await res.text();
-        const lines = text.split('');
+        const lines = text.split('\n');
         const cont = document.getElementById('channels-container');
         cont.innerHTML = '';
         
