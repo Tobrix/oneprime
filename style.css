@@ -1,41 +1,93 @@
+/* ============================================
+   ONEPRIMETV — Redesign 2026
+   Aesthetic: Dark luxury broadcast — deep navy blacks,
+   electric crimson accents, cinematic atmosphere
+   Font: Outfit (display) + DM Sans (body)
+   ============================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap');
+
 :root {
-    --bg: #050505;
-    --sidebar-bg: #111111;
-    --card-bg: #1a1a1a;
-    --accent: #e50914;
-    --text: #ffffff;
+    --bg:            #070a0f;
+    --bg2:           #0c1018;
+    --sidebar-bg:    #0d1117;
+    --card-bg:       #131923;
+    --card-hover:    #1a2330;
+    --border:        rgba(255,255,255,0.06);
+    --border-hover:  rgba(255,255,255,0.12);
+    --accent:        #e5161e;
+    --accent-dim:    rgba(229,22,30,0.15);
+    --accent-glow:   rgba(229,22,30,0.4);
+    --text:          #f0f4f8;
+    --text-dim:      #8899aa;
+    --text-muted:    #4a5568;
+    --live:          #e5161e;
+    --live-glow:     rgba(229,22,30,0.6);
+    --gold:          #f5c842;
+    --sidebar-w:     340px;
+    --radius:        12px;
+    --radius-lg:     20px;
+    --shadow:        0 8px 32px rgba(0,0,0,0.6);
+    --transition:    0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
-body, html {
-    height: 100vh; width: 100vw;
-    font-family: 'Inter', sans-serif;
-    background: var(--bg); color: var(--text);
+html, body {
+    height: 100dvh;
+    width: 100vw;
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ── LAYOUT ─────────────────────────────── */
+.app-layout {
+    display: flex;
+    height: 100dvh;
+    width: 100vw;
+}
+
+/* ── PLAYER AREA ─────────────────────────── */
+.player-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #000;
+    position: relative;
+    min-width: 0;
+}
+
+.video-section {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    position: relative;
     overflow: hidden;
 }
 
-.app-layout { display: flex; height: 100vh; width: 100vw; }
+video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
 
-/* --- PLAYER AREA --- */
-.player-area { flex: 1; display: flex; flex-direction: column; background: #000; position: relative; }
-.video-section { flex: 1; display: flex; align-items: center; justify-content: center; background: #000; position: relative; overflow: hidden; }
-video { width: 100%; height: 100%; object-fit: contain; }
-/* --- SKRYTÍ KURZORU PŘI NEAKTIVITĚ --- */
-
-/* Když je wrapper označen jako neaktivní, skryjeme kurzor všude uvnitř */
-#video-wrapper.user-inactive, 
+/* ── CURSOR HIDE ─────────────────────────── */
+#video-wrapper.user-inactive,
 #video-wrapper.user-inactive * {
     cursor: none !important;
 }
-
-/* Specificky pro fullscreen režim, aby prohlížeč kurzor nevynutil */
 #video-wrapper:fullscreen.user-inactive {
     cursor: none !important;
 }
 
-/* --- OVLÁDACÍ PRVKY (OVERLAY) --- */
-:fullscreen .custom-controls.controls-hidden {
+/* ── CONTROLS OVERLAY ────────────────────── */
+:fullscreen .custom-controls.controls-hidden,
+:-webkit-full-screen .custom-controls.controls-hidden {
     opacity: 0;
     pointer-events: none;
 }
@@ -43,693 +95,853 @@ video { width: 100%; height: 100%; object-fit: contain; }
 .custom-controls {
     position: absolute;
     inset: 0;
-    background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 25%, transparent 60%, rgba(0,0,0,0.9) 100%);
+    background: 
+        linear-gradient(180deg, rgba(7,10,15,0.85) 0%, transparent 20%),
+        linear-gradient(0deg, rgba(7,10,15,0.95) 0%, rgba(7,10,15,0.4) 30%, transparent 60%);
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 30px;
+    padding: 28px 32px;
     z-index: 20;
     opacity: 1;
-    transition: opacity 0.4s ease-in-out;
+    transition: opacity 0.35s ease;
 }
 
+/* ── OVERLAY HEADER ──────────────────────── */
+.overlay-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
 
-
-.overlay-header { display: flex; align-items: center; gap: 20px; padding-top: 10px; }
 .overlay-header img {
-    height: 50px; width: auto; background: rgba(255,255,255,0.1);
-    padding: 5px; border-radius: 6px;
+    height: 44px;
+    width: auto;
+    background: rgba(255,255,255,0.08);
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.1);
+    backdrop-filter: blur(10px);
 }
-.header-text h2 { font-size: 1.5rem; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
 
-/* --- PROGRESS BAR / TIMELINE (OPRAVENO) --- */
-.overlay-bottom { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.header-text {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-text h2 {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.8);
+}
+
+/* ── BADGE ───────────────────────────────── */
+.badge {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 3px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+
+/* ── OVERLAY BOTTOM ──────────────────────── */
+.overlay-bottom {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+}
+
+/* ── PROGRAM INFO ────────────────────────── */
+.program-info-container {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+}
 
 #current-program-title {
-    font-size: 1.1rem; color: var(--accent); font-weight: 600;
-    text-shadow: 0 2px 4px rgba(0,0,0,1); margin-left: 2px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 500;
+    color: var(--text);
+    text-shadow: 0 2px 8px rgba(0,0,0,0.9);
+    letter-spacing: -0.01em;
 }
 
-.epg-timeline-wrapper { display: flex; align-items: center; gap: 15px; width: 100%; }
-#epg-start-time, #epg-stop-time { font-size: 0.85rem; font-weight: 600; color: #ddd; min-width: 40px; }
+#show-more-btn {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: var(--text-dim);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all var(--transition);
+    white-space: nowrap;
+    backdrop-filter: blur(8px);
+}
 
-/* HLAVNÍ KONTEJNER (BÍLÁ STATICKÁ ČÁRA) */
+#show-more-btn:hover {
+    background: rgba(255,255,255,0.14);
+    border-color: rgba(255,255,255,0.22);
+    color: var(--text);
+}
+
+#program-details-wrapper {
+    width: 100%;
+    overflow: hidden;
+    transition: max-height 0.35s cubic-bezier(0.4,0,0.2,1);
+    max-height: 300px;
+}
+
+#program-details-wrapper.collapsed {
+    max-height: 0;
+}
+
+#program-desc {
+    padding: 14px 0 4px;
+}
+
+/* ── EPG TIMELINE ────────────────────────── */
+.epg-timeline-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+}
+
+#epg-start-time, #epg-stop-time {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-dim);
+    min-width: 38px;
+    font-variant-numeric: tabular-nums;
+}
+
 .progress-container {
     flex: 1;
-    height: 8px;
-    background: transparent !important; /* Odstraněno původní pozadí */
+    height: 4px;
+    background: transparent;
     border-radius: 4px;
     cursor: pointer;
     position: relative;
     user-select: none;
-    margin: 0 5px;
-    /* Zvětšení aktivní plochy pro myš zůstává */
-    border-top: 10px solid transparent;
-    border-bottom: 10px solid transparent;
-    background-clip: padding-box;
-    transition: height 0.2s;
-}
-.progress-container:hover { height: 10px; }
-
-/* ŠEDÁ LINKA (LIVE HRANA - kolik už v TV uběhlo) */
-.progress-bar-live {
-    position: absolute;
-    left: 0; 
-    top: 0; 
-    height: 100% !important;
-    background: rgba(255, 255, 255, 0.25) !important; 
-    border-radius: 4px;
-    z-index: 1;
-    pointer-events: none;
-    width: 0%; /* Ovládá JS */
-    min-height: 8px; /* Zásadní pro zobrazení */
+    padding: 10px 0;
+    margin: -10px 0;
+    transition: var(--transition);
 }
 
-/* ČERVENÁ LINKA (POZICE DIVÁKA - posouvající se) */
-.progress-bar {
-    position: absolute;
-    left: 0; 
-    top: 0; 
-    height: 100% !important;
-    background: var(--accent) !important;
-    border-radius: 4px;
-    z-index: 2; 
-    width: 0%; /* Ovládá JS */
-    box-shadow: 1px 0 5px rgba(229, 9, 20, 0.5);
-    min-height: 8px; /* Zásadní pro zobrazení */
-}
-
-/* Kolečko (Koule) na konci červené čáry */
-.progress-bar::after {
-    content: '';
-    position: absolute;
-    right: -7px; 
-    top: 50%;
-    transform: translateY(-50%);
-    width: 12px; 
-    height: 12px;
-    background: #fff;
-    border-radius: 50%;
-    box-shadow: 0 0 10px rgba(0,0,0,0.5);
-    z-index: 3;
-}
-
-.progress-container:hover .progress-bar::after { 
-    transform: translateY(-50%) scale(1.1);
+.progress-container:hover .progress-bar-static {
+    height: 5px;
 }
 
 .progress-bar-static {
     position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%; 
-    height: 100%;
-    /* Barvu jsem dal výraznější, abys ji viděl, pak si ji uber */
-    background: rgba(255, 255, 255, 0.05) !important; 
+    left: 0; top: 50%;
+    transform: translateY(-50%);
+    width: 100%;
+    height: 3px;
+    background: rgba(255,255,255,0.12);
     border-radius: 4px;
-    z-index: 0; 
-    pointer-events: none;
-    /* TOTO CHYBĚLO - bez toho má div výšku 0px */
-    min-height: 8px; 
+    transition: height 0.2s;
 }
 
-/* Hover indikátor času nad osou */
+.progress-bar-live {
+    position: absolute;
+    left: 0; top: 50%;
+    transform: translateY(-50%);
+    height: 3px;
+    background: rgba(255,255,255,0.28);
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 1;
+    transition: height 0.2s;
+}
+
+.progress-bar {
+    position: absolute;
+    left: 0; top: 50%;
+    transform: translateY(-50%);
+    height: 3px;
+    background: var(--accent);
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 2;
+    box-shadow: 0 0 8px var(--accent-glow);
+    transition: height 0.2s;
+}
+
+.progress-bar::after {
+    content: '';
+    position: absolute;
+    right: -5px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 11px;
+    height: 11px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent-glow), 0 2px 4px rgba(0,0,0,0.5);
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.progress-container:hover .progress-bar::after {
+    opacity: 1;
+}
+
 .hover-time-indicator {
     position: absolute;
-    bottom: 30px;
+    bottom: 18px;
+    background: rgba(13,17,23,0.95);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 3px 7px;
+    border-radius: 5px;
     transform: translateX(-50%);
-    background: #fff;
-    color: #000;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    font-weight: 700;
-    display: none;
     pointer-events: none;
-    z-index: 30;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    display: none;
+    white-space: nowrap;
+    z-index: 10;
+    backdrop-filter: blur(8px);
 }
 
-/* --- CONTROLS --- */
-.controls-main { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; }
-.controls-left, .controls-right { display: flex; align-items: center; gap: 15px; }
-
-button {
-    background: none; border: none; color: white; cursor: pointer;
-    padding: 5px; transition: transform 0.1s, color 0.1s;
-}
-button:hover { color: var(--accent); transform: scale(1.15); }
-
-.skip-btn { display: flex; flex-direction: column; align-items: center; }
-.skip-btn span { font-size: 0.6rem; margin-top: -2px; opacity: 0.8; }
-
-/* --- MODERNÍ ZVUK (KLIKACÍ BOX) --- */
-.volume-wrapper {
-    position: relative;
+/* ── CONTROLS MAIN ───────────────────────── */
+.controls-main {
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: 8px;
 }
 
-/* Skleněný box - v základu skrytý a posunutý níž */
-/* --- ÚPRAVA OVLÁDÁNÍ ZVUKU --- */
-.volume-slider-container {
-    position: absolute;
-    bottom: calc(100% + 15px);
-    left: 50%;
-    transform: translateX(-50%) translateY(10px);
-    background: rgba(15, 15, 15, 0.85);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 12px 15px;
-    width: 160px;
-    display: none; /* V základu skryto */
+.controls-left, .controls-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ── BUTTONS ─────────────────────────────── */
+.controls-main button,
+.controls-main .control-btn {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.85);
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
-    z-index: 10000;
+    transition: all var(--transition);
+    position: relative;
+    backdrop-filter: blur(8px);
 }
 
-/* Třída pro otevření zvuku */
+.controls-main button:hover,
+.controls-main .control-btn:hover {
+    background: rgba(255,255,255,0.12);
+    border-color: rgba(255,255,255,0.16);
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.controls-main button svg,
+.controls-main .control-btn svg {
+    width: 17px;
+    height: 17px;
+}
+
+#play-pause {
+    background: var(--accent) !important;
+    border-color: transparent !important;
+    color: #fff !important;
+    width: 42px !important;
+    height: 42px !important;
+    border-radius: 10px !important;
+    box-shadow: 0 4px 16px var(--accent-glow);
+}
+
+#play-pause:hover {
+    background: #ff1f27 !important;
+    transform: scale(1.05) translateY(-1px) !important;
+    box-shadow: 0 6px 20px var(--accent-glow) !important;
+}
+
+.skip-btn {
+    width: auto !important;
+    padding: 0 12px !important;
+    gap: 5px !important;
+    flex-direction: row !important;
+}
+
+.skip-btn span {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+/* ── VOLUME ──────────────────────────────── */
+.volume-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    position: relative;
+}
+
+.volume-slider-container {
+    overflow: hidden;
+    width: 0;
+    opacity: 0;
+    transition: width 0.3s ease, opacity 0.3s ease;
+    display: flex;
+    align-items: center;
+    padding: 0;
+}
+
 .volume-slider-container.show {
-    display: flex;
-    /* Použijeme tvou animaci, ale musíme zachovat translateX(-50%), aby byl centrovaný */
-    animation: volumeSlideIn 0.3s ease-out forwards;
+    width: 90px;
+    opacity: 1;
+    padding: 0 8px;
 }
 
-/* Třída pro zavření zvuku */
 .volume-slider-container.hide {
-    display: flex;
-    animation: volumeSlideOut 0.3s ease-in forwards;
-}
-
-/* Specifické keyframes pro zvuk (kvůli vycentrování přes translateX) */
-@keyframes volumeSlideIn {
-    from { opacity: 0; transform: translateX(-50%) translateY(30px) scale(0.98); }
-    to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
-}
-
-@keyframes volumeSlideOut {
-    from { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
-    to { opacity: 0; transform: translateX(-50%) translateY(30px) scale(0.98); }
+    width: 0;
+    opacity: 0;
 }
 
 #volume-slider {
     -webkit-appearance: none;
-    appearance: none; /* Standardní zápis */
-    width: 100%;
-    height: 10px;
-    background: transparent; /* Pozadí pořešíme v tracku níže */
+    appearance: none;
+    width: 80px;
+    height: 3px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 3px;
     outline: none;
     cursor: pointer;
-    margin: 0;
 }
 
-/* --- DRÁHA (TRACK) - TOHLE JE TA OPRAVA --- */
-
-/* Pro Chrome, Safari, Edge, Opera */
-#volume-slider::-webkit-slider-runnable-track {
-    width: 100%;
-    height: 10px;
-    background: rgba(255, 255, 255, 0.15);
-    border-radius: 20px; /* Tady se tvoří ta "pilulka" */
-    border: none;
-}
-
-/* Pro Firefox */
-#volume-slider::-moz-range-track {
-    width: 100%;
-    height: 10px;
-    background: rgba(255, 255, 255, 0.15);
-    border-radius: 20px;
-    border: none;
-}
-
-/* --- KULIČKA (THUMB) --- */
-
-/* Pro Chrome, Safari, Edge */
 #volume-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
-    appearance: none;
-    height: 15px;
-    width: 15px;
-    background: rgba(255, 255, 255, 0.65); /* ZÁKLAD: Viditelnější, ale stále soft */
+    width: 12px;
+    height: 12px;
+    background: #fff;
     border-radius: 50%;
-    margin-top: -2px;
-    box-shadow: 0 0 8px rgba(0,0,0,0.3);
-    border: none;
-    transition: all 0.2s ease;
-    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
 }
 
-/* Stav při najetí nebo při kliknutí (posouvání) */
-#volume-slider:hover::-webkit-slider-thumb,
-#volume-slider:active::-webkit-slider-thumb {
-    background: rgba(255, 255, 255, 0.9); /* AKTIVNÍ: Skoro bílá, ale stále s 10% průhledností */
-    transform: scale(1.1);
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.4);
-}
-
-/* Pro Firefox */
-#volume-slider::-moz-range-thumb {
-    height: 18px;
-    width: 18px;
-    background: rgba(255, 255, 255, 0.65); /* ZÁKLAD */
-    border-radius: 50%;
-    border: none;
-    box-shadow: 0 0 8px rgba(0,0,0,0.3);
-    transition: all 0.2s ease;
-    cursor: pointer;
-}
-
-#volume-slider:hover::-moz-range-thumb,
-#volume-slider:active::-moz-range-thumb {
-    background: rgba(255, 255, 255, 0.9); /* AKTIVNÍ */
-    transform: scale(1.1);
-}
-
-/* --- LIVE STATUS & DOT --- */
+/* ── STATUS LIVE ─────────────────────────── */
 #status-msg {
-    font-size: 0.8rem; font-weight: 700; color: #fff;
-    background: rgba(255,0,0,0.2); padding: 2px 8px; border-radius: 4px;
-    display: flex; align-items: center; gap: 6px; text-transform: uppercase;
-    position: relative; overflow: hidden; z-index: 1;
-    transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-#status-msg.recording-mode { background: rgba(120, 120, 120, 0.4); }
-#status-msg.recording-mode .dot { background: #bbb; box-shadow: none; }
-#status-msg.recording-mode .dot::after { display: none; }
-
-.dot {
-    height: 7px; width: 7px; background: #ff0000;
-    border-radius: 50%; display: inline-block; position: relative;
-    box-shadow: 0 0 4px rgba(255, 0, 0, 0.8); flex-shrink: 0;
-}
-
-.dot::after {
-    content: ''; position: absolute; top: 50%; left: 50%;
-    transform: translate(-50%, -50%); width: 100%; height: 100%;
-    background: rgba(255, 0, 0, 0.9); border-radius: 50%;
-    filter: blur(4px); z-index: -1;
-    animation: live-breathe-visible 2.5s ease-in-out infinite;
-}
-
-@keyframes live-breathe-visible {
-    0%, 100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.1; }
-    50% { transform: translate(-50%, -50%) scale(8); opacity: 0.5; }
-}
-
-.badge { padding: 3px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 800; background: var(--accent); margin-left: 10px; display: none;}
-
-/* --- INDICATORS LAYER (Zjednodušené bez kruhů) --- */
-.indicators-layer { 
-    position: absolute; 
-    inset: 0; 
-    pointer-events: none; 
-    display: flex; 
-    align-items: center; 
-    justify-content: center; 
-    z-index: 15; 
-}
-
-.side-indicator {
-    position: absolute; 
-    width: 40%; 
-    height: 100%;
-    display: flex; 
-    align-items: center; 
-    justify-content: center;
-    opacity: 0; 
-    transition: opacity 0.3s ease;
-}
-
-/* Jemné stíny po stranách můžeme nechat pro čitelnost textu, nebo je smazat úplně */
-.side-indicator.left { left: 0; background: linear-gradient(to right, rgba(0,0,0,0.3) 0%, transparent 100%); }
-.side-indicator.right { right: 0; background: linear-gradient(to left, rgba(0,0,0,0.3) 0%, transparent 100%); }
-
-.side-indicator.animating { opacity: 1; }
-
-/* ODSTRANĚNÍ KRUHU A POZADÍ */
-.side-indicator .indicator-content {
-    background: none;        /* Odstraněno bílé pozadí */
-    backdrop-filter: none;   /* Odstraněn blur */
-    border: none;            /* Odstraněn rámeček */
-    filter: drop-shadow(0 0 10px rgba(0,0,0,0.5)) drop-shadow(0 0 30px rgba(0,0,0,0.5));
-    color: white;
-    display: flex; 
-    flex-direction: column; 
-    align-items: center; 
-    justify-content: center;
-    text-shadow: 0 0 15px rgba(0,0,0,0.8); /* Přidán stín pro čitelnost na světlých scénách */
-}
-
-/* Ikona Lucide v indikátoru */
-.side-indicator .indicator-content i {
-    width: 60px !important;
-    height: 60px !important;
-    stroke-width: 1.5px;
-}
-
-/* Text 10s pod ikonou */
-.side-indicator .indicator-content span {
-    font-size: 0.7rem;
-    font-weight: 200;
-    margin-top: 5px;
-}
-
-/* Úprava animací - teď se to jen jemně hýbe a mizí */
-@keyframes skip-left-pulse {
-    0% { transform: translateX(20px); opacity: 0; }
-    20% { opacity: 1; }
-    100% { transform: translateX(-20px); opacity: 0; }
-}
-@keyframes skip-right-pulse {
-    0% { transform: translateX(-20px); opacity: 0; }
-    20% { opacity: 1; }
-    100% { transform: translateX(20px); opacity: 0; }
-}
-
-/* Středový indikátor (Play/Pause) taky bez kruhu */
-/* --- RYCHLÝ A SMOOTH SYMETRICKÝ INDIKÁTOR (OPRAVENÝ STÍN) --- */
-.center-indicator {
-    position: absolute;
-    inset: 0;
     display: flex;
     align-items: center;
-    justify-content: center;
-    pointer-events: none;
-    z-index: 100;
+    gap: 6px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    padding: 4px 10px;
+    backdrop-filter: blur(8px);
 }
 
-.center-indicator .indicator-content { 
-    background: none !important; /* Vynucení průhledného pozadí */
-    border: none !important;
-    color: white;
-    display: flex; 
-    align-items: center; 
-    justify-content: center;
-    
-    opacity: 0; 
-    transform: scale(0.3); 
-    
-    transition: 
-        transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), 
-        opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1), 
-        filter 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+.dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--live-glow);
+    animation: pulse-dot 1.8s ease-in-out infinite;
 }
 
-/* AKTIVNÍ STAV */
-.center-indicator.active .indicator-content {
-    opacity: 1;
-    transform: scale(1);
-
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
 }
 
-/* Cílení na ikonu uvnitř pro správnou velikost */
-.center-indicator .indicator-content i,
-.center-indicator .indicator-content svg {
-    width: 60px !important;  /* Trochu jsem zvětšil pro lepší viditelnost */
-    height: 60px !important;
-    stroke-width: 1.2px !important;
-    /* Odstranění případných box-shadow z jiných částí CSS */
-    box-shadow: none !important; 
+#status-msg.recording-mode .dot {
+    background: var(--gold);
+    box-shadow: 0 0 6px rgba(245,200,66,0.6);
+    animation: none;
 }
 
-/* --- SIDEBAR & CHANNELS --- */
-.sidebar { width: 350px; background: var(--sidebar-bg); display: flex; flex-direction: column; border-left: 1px solid #222; }
-.brand { font-size: 1.5rem; font-weight: bold; padding: 20px; color: var(--accent); }
-.brand b { color: #fff; }
-#search-box { width: 90%; margin: 0 auto 10px; display: block; padding: 10px; background: #222; border: 1px solid #333; color: #fff; border-radius: 6px; }
-.channel-list-container { flex: 1; overflow-y: auto; padding: 10px; }
-.channel-item { display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--card-bg); border-radius: 8px; cursor: pointer; margin-bottom: 5px; border: 2px solid transparent; }
-.channel-item.active { border-color: var(--accent); background: #252525; }
-.channel-item img { width: 60px; height: 35px; object-fit: contain; background: #333; border-radius: 4px; }
-.channel-info { flex: 1; overflow: hidden; }
-.channel-name { font-size: 0.9rem; font-weight: 600; display: block; }
-.epg-now { font-size: 0.75rem; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#status-text {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+}
 
-.epg-mini-progress { width: 100%; height: 3px; background: rgba(255,255,255,0.1); margin-top: 6px; border-radius: 2px; overflow: hidden; }
-.epg-bar-inner { height: 100%; background: var(--accent); width: 0%; }
-
-/* --- MODERNÍ QUALITY DROPDOWN (NÁHRADA ZA PŮVODNÍ KONEC SOUBORU) --- */
-
-/* Obal pro tlačítko, aby dropdown věděl, odkud se má odrazit */
+/* ── QUALITY SELECTOR ────────────────────── */
 .quality-wrapper {
     position: relative;
-    z-index: 25;
 }
 
-/* --- ÚPRAVA QUALITY DROPDOWN --- */
+#quality-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    width: auto !important;
+    padding: 0 10px !important;
+    font-family: 'DM Sans', sans-serif;
+}
+
+#current-quality-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
 .quality-dropdown {
     position: absolute;
-    bottom: calc(100% + 15px);
+    bottom: calc(100% + 10px);
     right: 0;
-    background: rgba(15, 15, 15, 0.85);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
+    background: rgba(13,17,23,0.97);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: var(--radius);
+    min-width: 160px;
     padding: 8px;
-    min-width: 200px;
-    display: none; /* Skryto v základu */
-    flex-direction: column;
-    gap: 4px;
-    z-index: 9999 !important;
-    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
-    
-    /* Odstraň původní animation: menuAppear a nahraď tímto: */
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(8px);
+    transition: all 0.2s ease;
+    backdrop-filter: blur(20px);
+    box-shadow: var(--shadow);
 }
 
-/* Třída pro zobrazení (otevření) */
 .quality-dropdown.show {
-    display: flex;
-    animation: epgSlideIn 0.3s ease-out forwards;
+    opacity: 1;
+    pointer-events: all;
+    transform: translateY(0);
 }
 
-/* Třída pro skrytí (zavření) */
 .quality-dropdown.hide {
-    display: flex; /* Musí zůstat flex, aby byla vidět animace */
-    animation: epgSlideOut 0.3s ease-in forwards;
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
 }
 
-/* Ujisti se, že Keyframes máš v CSS dostupné (můžeš je dát na konec style.css) */
-@keyframes epgSlideIn {
-    from { opacity: 0; transform: translateY(30px) scale(0.98); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes epgSlideOut {
-    from { opacity: 1; transform: translateY(0) scale(1); }
-    to { opacity: 0; transform: translateY(30px) scale(0.98); }
-}
-
-.quality-dropdown.show {
-    display: flex;
-}
-
-/* Nadpis uvnitř menu */
 .dropdown-header {
-    padding: 10px 16px;
-    font-size: 0.75rem;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.65rem;
     font-weight: 700;
-    color: rgba(255, 255, 255, 0.5);
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    letter-spacing: 1px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text-muted);
+    padding: 4px 8px 8px;
+    border-bottom: 1px solid var(--border);
     margin-bottom: 4px;
 }
 
-/* Styl pro položku v seznamu */
 .quality-option {
-    padding: 10px 15px;
-    cursor: pointer;
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    border-radius: 6px !important;
-    transition: background 0.2s;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border-radius: 7px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all var(--transition);
 }
 
 .quality-option:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255,255,255,0.06);
+    color: var(--text);
 }
 
-/* --- TOHLE JE KLÍČOVÉ --- */
 .quality-option.active {
-    color: #e50914; /* Netflix červená */
-    font-weight: bold;
-    background: rgba(229, 9, 20, 0.1); /* Jemný červený nádech */
+    color: var(--accent);
+    background: var(--accent-dim);
 }
 
-
-/* Animace vyskočení menu */
-@keyframes menuAppear {
-    from {
-        opacity: 0;
-        transform: translateY(10px) scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
+/* ── VIDEO LOADER ────────────────────────── */
+.video-loader {
+    position: absolute;
+    inset: 0;
+    background: rgba(7,10,15,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 30;
+    backdrop-filter: blur(4px);
 }
 
-/* --- FINÁLNÍ OPRAVA SCROLLBARU --- */
-
-/* 1. Šířka zůstává */
-.channel-list-container::-webkit-scrollbar {
-    width: 12px;
-}
-
-/* 2. Odstranění šipek (Důležité pro čistý design) */
-.channel-list-container::-webkit-scrollbar-button {
-    display: none !important;
-}
-
-/* 3. Dráha (track) - pozadí, po kterém jezdec jezdí */
-.channel-list-container::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.3) !important;
-    border-radius: 20px;
-}
-
-/* 4. POSUVNÍK - ZÁKLADNÍ STAV (Tady nesmí být červená!) */
-.channel-list-container::-webkit-scrollbar-thumb {
-    /* Nastavíme jemnou šedou, aby byl posuvník vidět, ale nerušil */
-    background-color: rgba(255, 255, 255, 0.1) !important; 
-    border-radius: 20px;
-    border: 2px solid transparent;
-    background-clip: padding-box;
-    /* Plynulý přechod (v Chromiu funguje jen na barvu) */
-    transition: background-color 0.3s ease;
-}
-
-/* 5. HOVER STAV - Tady se to změní na tvou červenou */
-/* Chceš, aby to zčervenalo, když najedeš na CELOU LIŠTU? Použijeme tento selektor: */
-.channel-list-container:hover::-webkit-scrollbar-thumb {
-    background-color: rgba(255, 255, 255, 0.3) !important; /* Trochu víc zvýraznit při najetí na seznam */
-}
-
-/* 6. HOVER STAV PŘÍMO NA JEZDEC - Tady to bude tvá ostrá červená */
-.channel-list-container::-webkit-scrollbar-thumb:hover {
-    background-color: var(--accent) !important; /* Tvůj červený accent #e50914 */
-}
-
-/* 7. ACTIVE - Při kliknutí a tažení */
-.channel-list-container::-webkit-scrollbar-thumb:active {
-    background-color: #b20710 !important; /* Trochu tmavší červená při stisknutí */
-}
-
-/* --- FINÁLNÍ MODERNÍ INFO PANEL --- */
-.program-info-container {
-    margin-bottom: 10px; /* Přisunuto blíže k timeline */
-    max-width: 800px;
-    position: relative;
-    z-index: 10;
+.spinner-container {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-}
-
-#current-program-title {
-    font-size: 1.5rem;
-    color: #fff;
-    font-weight: 700;
-    text-shadow: 0 2px 8px rgba(0,0,0,0.8);
-    margin: 0;
-}
-
-/* Tlačítko jako čistý text */
-#show-more-btn {
-    background: rgba(255, 255, 255, 0.08); /* Jemný skleněný podklad */
-    backdrop-filter: blur(5px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.8);
-    padding: 6px 14px;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    cursor: pointer;
-    display: inline-flex;
     align-items: center;
-    gap: 6px;
-    margin-top: 5px;
-    width: fit-content;
-    
-    /* Změna transition z 0.1s na 0.3s pro hladký průběh */
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    /* Důležité: přebijeme ten globální transform */
-    transform: scale(1); 
-}
-#show-more-btn:hover {
-    background: rgba(255, 255, 255, 0.15);
-    color: #fff;
-    border-color: rgba(255, 255, 255, 0.3);
-    
-    /* Místo 1.15 dáme jen jemných 1.03 */
-    transform: translateY(-1px) scale(1.03); 
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    gap: 14px;
 }
 
-/* Hlavní kontejner popisu - tvůj plynulý výsun */
-#program-details-wrapper {
-    position: relative;
-    width: 100%;
-    margin-top: 10px; /* Mezera od tlačítka směrem dolů */
-    margin-bottom: 10px; /* Mezera k časové ose */
-    
-    /* NETFLIX GLASS STYLE */
-    background: rgba(10, 10, 10, 0.7); /* Více průhledné (0.7 místo 0.95) */
-    backdrop-filter: blur(20px) saturate(180%); /* Rozmazání + zvýraznění barev videa pod tím */
-    -webkit-backdrop-filter: blur(20px) saturate(180%); /* Podpora pro Safari */
-    
-    border: 1px solid rgba(255, 255, 255, 0.1); /* Velmi jemná linka pro hloubku */
-    border-radius: 12px;
-    z-index: 2100;
-    /* Animace */
-    max-height: 500px;
-    opacity: 1;
-    transform: translateY(0);
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    padding: 20px;
-    overflow: hidden;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); /* Stín pod oknem */
+.main-spinner {
+    width: 44px;
+    height: 44px;
+    border: 3px solid rgba(255,255,255,0.08);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.75s linear infinite;
 }
 
-/* Stav zavřeno */
-#program-details-wrapper.collapsed {
-    max-height: 0;
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.loader-text {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+}
+
+/* ── INDICATORS (SKIP/PLAY) ──────────────── */
+.indicators-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 25;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.side-indicator {
+    width: 80px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     opacity: 0;
-    margin-top: 0;
-    margin-bottom: 0;
-    padding-top: 0;
-    padding-bottom: 0;
-    transform: translateY(40px); /* Odskočí o 40px dolů */
-    border-color: transparent;
+    transform: scale(0.8);
+    transition: all 0.15s ease;
+}
+
+.side-indicator.animating {
+    opacity: 1;
+    transform: scale(1);
+    animation: side-flash 0.45s ease forwards;
+}
+
+@keyframes side-flash {
+    0% { opacity: 0; transform: scale(0.7); }
+    30% { opacity: 1; transform: scale(1.05); }
+    70% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(0.9); }
+}
+
+.indicator-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 12px;
+    padding: 10px 14px;
+    backdrop-filter: blur(8px);
+}
+
+.indicator-content svg { width: 20px; height: 20px; }
+.indicator-content span {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
+.center-indicator {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    transition: opacity 0.15s ease;
     pointer-events: none;
 }
 
+.center-indicator.active {
+    opacity: 1;
+}
 
+.center-indicator .indicator-content {
+    padding: 16px;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    background: rgba(229,22,30,0.2);
+    border-color: rgba(229,22,30,0.4);
+}
 
-/* ROZLOŽENÍ ELEMENTŮ (Vstříknutých přes JS) */
+.center-indicator .indicator-content svg {
+    width: 26px;
+    height: 26px;
+}
+
+.skip-area {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 25%;
+    z-index: 15;
+}
+.skip-area.left { left: 0; }
+.skip-area.right { right: 0; }
+
+/* ── SIDEBAR ─────────────────────────────── */
+.sidebar {
+    width: var(--sidebar-w);
+    height: 100dvh;
+    background: var(--sidebar-bg);
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--border);
+    flex-shrink: 0;
+    position: relative;
+}
+
+/* Subtle gradient line on left edge */
+.sidebar::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 1px;
+    background: linear-gradient(180deg, transparent, var(--accent) 40%, var(--accent) 60%, transparent);
+    opacity: 0.3;
+}
+
+/* ── SIDEBAR HEADER ──────────────────────── */
+.sidebar-header {
+    padding: 20px 18px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.brand {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.brand::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    background: var(--accent);
+    border-radius: 2px;
+    box-shadow: 0 0 8px var(--accent-glow);
+}
+
+/* ── SEARCH ──────────────────────────────── */
+.search-container {
+    position: relative;
+}
+
+#search-box {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 14px 9px 36px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    outline: none;
+    transition: all var(--transition);
+}
+
+#search-box::placeholder { color: var(--text-muted); }
+
+#search-box:focus {
+    border-color: rgba(229,22,30,0.4);
+    background: rgba(255,255,255,0.06);
+    box-shadow: 0 0 0 3px rgba(229,22,30,0.08);
+}
+
+.search-container::before {
+    content: '';
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 14px;
+    height: 14px;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234a5568' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") center/contain no-repeat;
+}
+
+/* ── CHANNEL LIST ────────────────────────── */
+.channel-list-container {
+    flex: 1;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 8px 0;
+}
+
+.channel-list-container::-webkit-scrollbar {
+    width: 3px;
+}
+.channel-list-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+.channel-list-container::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.1);
+    border-radius: 3px;
+}
+.channel-list-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+/* ── CHANNEL ITEM ────────────────────────── */
+.channel-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 18px;
+    cursor: pointer;
+    transition: background var(--transition);
+    position: relative;
+    border-left: 2px solid transparent;
+}
+
+.channel-item:hover {
+    background: rgba(255,255,255,0.03);
+}
+
+.channel-item.active {
+    background: rgba(229,22,30,0.06);
+    border-left-color: var(--accent);
+}
+
+.channel-item.active::after {
+    content: '';
+    position: absolute;
+    right: 0; top: 0; bottom: 0;
+    width: 1px;
+    background: rgba(229,22,30,0.3);
+}
+
+/* FAV BUTTON */
+.fav-btn {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all var(--transition);
+    stroke-width: 1.5;
+}
+
+.fav-btn:hover { color: var(--gold); }
+.fav-btn.active {
+    color: var(--gold);
+    fill: var(--gold);
+}
+
+/* CHANNEL LOGO */
+.channel-item img {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+    padding: 3px;
+}
+
+/* CHANNEL INFO */
+.channel-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.channel-name {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color var(--transition);
+}
+
+.channel-item.active .channel-name {
+    color: #fff;
+    font-weight: 600;
+}
+
+.epg-now {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.channel-item.active .epg-now {
+    color: var(--text-dim);
+}
+
+/* MINI EPG BAR */
+.epg-mini-progress {
+    height: 2px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 2px;
+}
+
+.epg-bar-inner {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 1s linear;
+    opacity: 0.7;
+}
+
+.channel-item.active .epg-bar-inner {
+    opacity: 1;
+}
+
+/* ── PREVIEW CARDS (program details) ─────── */
 .preview-content-horizontal {
     display: flex;
-    gap: 25px;
+    gap: 16px;
     align-items: flex-start;
 }
 
 .preview-image-container-new {
     position: relative;
-    width: 280px; /* Trochu větší náhled, když máme šířku */
-    height: 157px;
+    width: 200px;
+    height: 112px;
     flex-shrink: 0;
-    border-radius: 12px;
+    border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+    background: var(--card-bg);
+    border: 1px solid var(--border);
 }
 
-#details-program-img {
+.preview-image-container-new img {
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -737,97 +949,66 @@ button:hover { color: var(--accent); transform: scale(1.15); }
 
 .preview-time-badge {
     position: absolute;
-    bottom: 10px;
-    right: 10px;
-    padding: 5px 12px;
-    border-radius: 6px;
-    font-size: 12px;
-    font-weight: 700;
+    bottom: 6px;
+    left: 6px;
+    background: rgba(7,10,15,0.9);
+    border: 1px solid rgba(255,255,255,0.1);
     color: #fff;
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 3px 7px;
+    border-radius: 5px;
+    backdrop-filter: blur(8px);
+    letter-spacing: 0.02em;
 }
 
 .preview-info {
     flex: 1;
+    min-width: 0;
 }
 
-#details-program-title {
-    font-size: 24px;
-    font-weight: 700;
-    margin: 0 0 12px 0;
-    color: var(--accent, #e50914);
-}
-
-#details-program-text {
-    font-size: 15px;
-    color: #ccc;
-    line-height: 1.6;
-    max-height: 120px;
-    overflow-y: auto;
-    scrollbar-width: none;
-}
-#details-program-text::-webkit-scrollbar { display: none; }
-
-/* --- DEFINITIVNÍ FIX CENTROVÁNÍ LOADERU --- */
-#video-loader {
-    display: none; /* Zapíná JS (nastavením na flex) */
-    position: absolute;
-    inset: 0;
-    z-index: 20;
-    
-    /* Vycentruje vnitřní .spinner-container */
-    justify-content: center;
-    align-items: center;
-    pointer-events: none;
-}
-
-/* Tento kontejner drží kolečko i text pod sebou a zajistí jejich vycentrování */
-.spinner-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;    /* Horizontální střed pro děti */
-    justify-content: center;
-    text-align: center;
-}
-
-.main-spinner {
-    width: 60px;
-    height: 60px;
-    border: 5px solid rgba(255, 255, 255, 0.1);
-    border-top: 5px solid var(--accent); /* Červená čára nahoře pro lepší vizuální střed */
-    border-radius: 50%;
-    
-    /* Reset marginů a mezera pod kolečkem */
-    margin: 0 0 15px 0 !important; 
-    
-    /* Animace a výkon */
-    animation: spin 0.8s linear infinite;
-    -webkit-animation: spin 0.8s linear infinite;
-    transform: translateZ(0);
-    -webkit-transform: translateZ(0);
-    flex-shrink: 0;
-}
-
-.loader-text {
-    color: white;
-    font-family: 'Inter', sans-serif;
-    font-size: 16px;
+.preview-info h3 {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1rem;
     font-weight: 600;
-    letter-spacing: 1px;
-    text-shadow: 0 2px 10px rgba(0,0,0,0.8);
-    margin: 0 !important;
-    padding: 0 !important;
+    margin-bottom: 6px;
+    color: var(--text);
 }
 
-/* Animace (standardní i pro Safari) */
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+.preview-info p,
+#details-program-text {
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    line-height: 1.55;
 }
 
-@-webkit-keyframes spin {
-    from { -webkit-transform: rotate(0deg); }
-    to { -webkit-transform: rotate(360deg); }
+/* ── FULLSCREEN BUTTON ───────────────────── */
+#fullscreen-btn svg { width: 17px; height: 17px; }
+
+/* ── EPG GRID OVERLAY ────────────────────── */
+#epg-grid-overlay {
+    position: absolute;
+    left: 20px;
+    right: 20px;
+    bottom: 100px;
+    height: 55vh;
+    background: rgba(7,10,15,0.97);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: var(--radius-lg);
+    z-index: 50;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 -8px 48px rgba(0,0,0,0.7);
+    backdrop-filter: blur(20px);
 }
 
+#epg-grid-overlay.show {
+    display: flex;
+    animation: slide-up 0.3s cubic-bezier(0.4,0,0.2,1);
+}
 
-
+@keyframes slide-up {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
