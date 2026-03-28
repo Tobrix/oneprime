@@ -1199,7 +1199,7 @@ async function loadPlaylist() {
     try {
         const res = await fetch('playlist.m3u');
         const text = await res.text();
-        const lines = text.split('\n')
+        const lines = text.split('');
         const cont = document.getElementById('channels-container');
         cont.innerHTML = '';
         
