@@ -51,10 +51,10 @@ http://94.241.90.115:8889/play/CNN%20Prima%20News.m3u8
 #KODIPROP:inputstream.adaptive.stream_headers=User-Agent=Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%3B+rv%3A142.0%29+Gecko%2F20100101+Firefox%2F142.0&Accept-Encoding=gzip%2C+deflate%2C+br%2C+zstd&Accept=%2A%2F%2A
 #KODIPROP:inputstream.adaptive.manifest_headers=User-Agent=Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%3B+rv%3A142.0%29+Gecko%2F20100101+Firefox%2F142.0&Accept-Encoding=gzip%2C+deflate%2C+br%2C+zstd&Accept=%2A%2F%2A
 http://94.241.90.115:8889/play/Televize%20Seznam%20HD.m3u8
-#EXTINF:-1 provider="Oneplay" tvg-chno="14" tvg-name="AMC" tvg-logo="https://eboxcz-ott-images.ssl.cdn.cra.cz/r480x320n/ef4b5c10-8c53-4e68-8d7f-618724022774" catchup-days="7" catchup="shift", AMC
+#EXTINF:-1 provider="Oneplay" tvg-chno="14" tvg-name="Film+" tvg-logo="https://eboxcz-ott-images.ssl.cdn.cra.cz/r480x320n/a90dd73a-6c55-4ea3-9b80-8587c5efacb1" catchup-days="7" catchup="shift", Film+
 #KODIPROP:inputstream.adaptive.stream_headers=User-Agent=Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%3B+rv%3A142.0%29+Gecko%2F20100101+Firefox%2F142.0&Accept-Encoding=gzip%2C+deflate%2C+br%2C+zstd&Accept=%2A%2F%2A
 #KODIPROP:inputstream.adaptive.manifest_headers=User-Agent=Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%3B+rv%3A142.0%29+Gecko%2F20100101+Firefox%2F142.0&Accept-Encoding=gzip%2C+deflate%2C+br%2C+zstd&Accept=%2A%2F%2A
-http://94.241.90.115:8889/play/AMC.m3u8
+http://94.241.90.115:8889/play/Film%2B.m3u8
 #EXTINF:-1 provider="Oneplay" tvg-chno="15" tvg-name="Prima MAX HD" tvg-logo="https://eboxcz-ott-images.ssl.cdn.cra.cz/r480x320n/da93030e-88cf-45e9-a12d-cc3d8ab4ecc1" catchup-days="7" catchup="shift", Prima MAX HD
 #KODIPROP:inputstream.adaptive.stream_headers=User-Agent=Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%3B+rv%3A142.0%29+Gecko%2F20100101+Firefox%2F142.0&Accept-Encoding=gzip%2C+deflate%2C+br%2C+zstd&Accept=%2A%2F%2A
 #KODIPROP:inputstream.adaptive.manifest_headers=User-Agent=Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%3B+rv%3A142.0%29+Gecko%2F20100101+Firefox%2F142.0&Accept-Encoding=gzip%2C+deflate%2C+br%2C+zstd&Accept=%2A%2F%2A
@@ -211,7 +211,7 @@ http://94.241.90.115:8889/play/Mark%C3%ADza%20International.m3u8
 #KODIPROP:inputstream.adaptive.stream_headers=User-Agent=Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%3B+rv%3A142.0%29+Gecko%2F20100101+Firefox%2F142.0&Accept-Encoding=gzip%2C+deflate%2C+br%2C+zstd&Accept=%2A%2F%2A
 #KODIPROP:inputstream.adaptive.manifest_headers=User-Agent=Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%3B+rv%3A142.0%29+Gecko%2F20100101+Firefox%2F142.0&Accept-Encoding=gzip%2C+deflate%2C+br%2C+zstd&Accept=%2A%2F%2A
 http://94.241.90.115:8889/play/JOJ%20FAMILY.m3u8
-#EXTINF:-1 provider="Oneplay" tvg-chno="58" tvg-name="Epic Drama" tvg-logo="https://eboxcz-ott-images.ssl.cdn.cra.cz/r480x320n/10752bbf-336c-4a1a-a296-53ba46c789ad" catchup-days="7" catchup="shift", Epic Drama
+#EXTINF:-1 provider="Oneplay" tvg-chno="57" tvg-name="Epic Drama" tvg-logo="https://eboxcz-ott-images.ssl.cdn.cra.cz/r480x320n/10752bbf-336c-4a1a-a296-53ba46c789ad" catchup-days="7" catchup="shift", Epic Drama
 #KODIPROP:inputstream.adaptive.stream_headers=User-Agent=Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%3B+rv%3A142.0%29+Gecko%2F20100101+Firefox%2F142.0&Accept-Encoding=gzip%2C+deflate%2C+br%2C+zstd&Accept=%2A%2F%2A
 #KODIPROP:inputstream.adaptive.manifest_headers=User-Agent=Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%3B+rv%3A142.0%29+Gecko%2F20100101+Firefox%2F142.0&Accept-Encoding=gzip%2C+deflate%2C+br%2C+zstd&Accept=%2A%2F%2A
 http://94.241.90.115:8889/play/Epic%20Drama.m3u8
@@ -243,7 +243,7 @@ http://94.241.90.115:8889/play/Disney%20Channel.m3u8
 #KODIPROP:inputstream.adaptive.stream_headers=User-Agent=Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%3B+rv%3A142.0%29+Gecko%2F20100101+Firefox%2F142.0&Accept-Encoding=gzip%2C+deflate%2C+br%2C+zstd&Accept=%2A%2F%2A
 #KODIPROP:inputstream.adaptive.manifest_headers=User-Agent=Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%3B+rv%3A142.0%29+Gecko%2F20100101+Firefox%2F142.0&Accept-Encoding=gzip%2C+deflate%2C+br%2C+zstd&Accept=%2A%2F%2A
 http://94.241.90.115:8889/play/Nickelodeon.m3u8
-#EXTINF:-1 provider="Oneplay" tvg-chno="69" tvg-name="ČT :D / ČT art HD" tvg-logo="https://eboxcz-ott-images.ssl.cdn.cra.cz/r480x320n/41dafa3f-71e2-45d6-b2ef-2400e3bf95af" catchup-days="7" catchup="shift", ČT :D / ČT art HD
+#EXTINF:-1 provider="Oneplay" tvg-chno="69" tvg-name="ČT :D / ČT art HD" tvg-logo="https://eboxcz-ott-images.ssl.cdn.cra.cz/r480x320n/953416c1-e9ff-46c8-8828-e598a384c3eb" catchup-days="7" catchup="shift", ČT :D / ČT art HD
 #KODIPROP:inputstream.adaptive.stream_headers=User-Agent=Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%3B+rv%3A142.0%29+Gecko%2F20100101+Firefox%2F142.0&Accept-Encoding=gzip%2C+deflate%2C+br%2C+zstd&Accept=%2A%2F%2A
 #KODIPROP:inputstream.adaptive.manifest_headers=User-Agent=Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%3B+rv%3A142.0%29+Gecko%2F20100101+Firefox%2F142.0&Accept-Encoding=gzip%2C+deflate%2C+br%2C+zstd&Accept=%2A%2F%2A
 http://94.241.90.115:8889/play/%C4%8CT%20%3AD%20sle%C5%A1%20%C4%8CT%20art%20HD.m3u8
@@ -327,7 +327,7 @@ http://94.241.90.115:8889/play/%C4%8CT%2024%20AD.m3u8
 #KODIPROP:inputstream.adaptive.stream_headers=User-Agent=Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%3B+rv%3A142.0%29+Gecko%2F20100101+Firefox%2F142.0&Accept-Encoding=gzip%2C+deflate%2C+br%2C+zstd&Accept=%2A%2F%2A
 #KODIPROP:inputstream.adaptive.manifest_headers=User-Agent=Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%3B+rv%3A142.0%29+Gecko%2F20100101+Firefox%2F142.0&Accept-Encoding=gzip%2C+deflate%2C+br%2C+zstd&Accept=%2A%2F%2A
 http://94.241.90.115:8889/play/%C4%8CT%20Sport%20AD.m3u8
-#EXTINF:-1 provider="Oneplay" tvg-chno="91" tvg-name="ČT D AD" tvg-logo="https://eboxcz-ott-images.ssl.cdn.cra.cz/r480x320n/440aea08-c289-4513-a779-1fc546a4c0aa" catchup-days="7" catchup="shift", ČT D AD
+#EXTINF:-1 provider="Oneplay" tvg-chno="91" tvg-name="ČT D AD" tvg-logo="https://eboxcz-ott-images.ssl.cdn.cra.cz/r480x320n/5f35c0d7-10fb-4375-9f6f-b7dcaa0e521e" catchup-days="7" catchup="shift", ČT D AD
 #KODIPROP:inputstream.adaptive.stream_headers=User-Agent=Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%3B+rv%3A142.0%29+Gecko%2F20100101+Firefox%2F142.0&Accept-Encoding=gzip%2C+deflate%2C+br%2C+zstd&Accept=%2A%2F%2A
 #KODIPROP:inputstream.adaptive.manifest_headers=User-Agent=Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%3B+rv%3A142.0%29+Gecko%2F20100101+Firefox%2F142.0&Accept-Encoding=gzip%2C+deflate%2C+br%2C+zstd&Accept=%2A%2F%2A
 http://94.241.90.115:8889/play/%C4%8CT%20D%20AD.m3u8
