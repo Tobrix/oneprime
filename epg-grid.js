@@ -1,4 +1,3 @@
-// WORKER_URL je definováno v script.js (načteno dříve v HTML)
 // Tento soubor ho automaticky zdědí
 
 let selectedEpgDate = new Date().toISOString().slice(0, 10).replace(/-/g, ''); // Formát YYYYMMDD
@@ -30,7 +29,7 @@ async function preloadAllDays() {
             const id = ch.getAttribute('data-id');
             // Stahujeme jen pokud to už v cache náhodou nemáme
             if (!epgCache[day][id]) {
-                fetch(WORKER_URL + `/epg-data?id=${encodeURIComponent(id)}&full=true&date=${day}`)
+                fetch(`/epg-data?id=${encodeURIComponent(id)}&full=true&date=${day}`)
                     .then(res => res.json())
                     .then(data => {
                         epgCache[day][id] = data;
@@ -183,7 +182,7 @@ async function fetchAndRenderRow(id) {
 
     // 2. FETCH - Pokud data v cache nejsou, stáhni je
     try {
-        const response = await fetch(WORKER_URL + `/epg-data?id=${encodeURIComponent(id)}&full=true&date=${selectedEpgDate}`);
+        const response = await fetch(`/epg-data?id=${encodeURIComponent(id)}&full=true&date=${selectedEpgDate}`);
         const programs = await response.json();
         
         // Ulož stažená data do cache pro příště
