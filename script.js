@@ -5,7 +5,6 @@
    Archive stall fix: lutc extended + fragLoadingMaxRetry.
 ═══════════════════════════════════════════ */
 'use strict';
-
 // ── STATE ─────────────────────────────────
 let hls = null;
 let isArchive = false;
