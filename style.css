@@ -841,12 +841,24 @@ input{outline:none;border:none;color:inherit;font:inherit;background:none;}
 .epg-modal-overlay { z-index: 300 !important; }
 
 /* ── FIX 2: Center indicator — exact center, no drift ── */
+/* ── FIX 2: Center indicator — exact center, no drift ── */
 #ind-center {
   position: absolute !important;
   left: 50% !important;
   top: 50% !important;
   transform: translate(-50%, -50%) !important;
   pointer-events: none !important;
+
+  /* PŘIDEJ TYTO TŘI ŘÁDKY PRO DOKONALÉ VYSTŘEDĚNÍ OBSAHU */
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+#ind-center svg {
+  /* Optická korekce pro Play tlačítko */
+  /* Trojúhelník potřebuje být o malý kousek vpravo, aby vypadal vycentrovaně */
+  margin-left: 2px; 
 }
 
 #ind-center svg {
