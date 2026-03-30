@@ -107,7 +107,7 @@ input{outline:none;border:none;color:inherit;font:inherit;background:none;}
 
 .tap-indicator.center {
   left: 50%;
-  top: 48%; /* Změna z 50% na 48% — posune to celé o kousek nahoru */
+  top: 50%; /* Změna z 50% na 48% — posune to celé o kousek nahoru */
   transform: translate(-50%, -50%);
   
   padding: 0; 
@@ -725,7 +725,7 @@ input{outline:none;border:none;color:inherit;font:inherit;background:none;}
 /* ── PROGRAM MODAL ───────────────────────── */
 .epg-modal-overlay {
   position: fixed; inset: 0; z-index: 10000;
-  background: rgba(0,0,0,0.75);
+  background: rgba(0,0,0,0.4);
   backdrop-filter: blur(8px);
   display: flex; align-items: center; justify-content: center;
   padding: 20px;
@@ -837,7 +837,7 @@ input{outline:none;border:none;color:inherit;font:inherit;background:none;}
 #ind-center {
   position: absolute !important;
   left: 50% !important;
-  top: 48% !important; /* TADY to změň také na 48% nebo 45% */
+  top: 50% !important; /* TADY to změň také na 48% nebo 45% */
   transform: translate(-50%, -50%) !important;
   pointer-events: none !important;
   display: flex !important;
