@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════
-   ONEPRIMETV — script.js (Fixed 2026)
+   ONEPRIMETV — script.js (Fix v3)
 ═══════════════════════════════════════════ */
 'use strict';
 
@@ -12,45 +12,46 @@ let currentArchiveData = null;
 let favorites = JSON.parse(localStorage.getItem('favs')) || [];
 let inactivityTimer = null;
 let controlsVisible = true;
+let channelsData = []; // store full channel list for re-render
 
 // ── DOM REFS ──────────────────────────────
-const video    = document.getElementById('video');
-const app      = document.getElementById('app');
-const controls = document.getElementById('controls');
-const loader   = document.getElementById('video-loader');
-const tlPos    = document.getElementById('tl-pos');
-const tlLive   = document.getElementById('tl-live');
-const tlThumb  = document.getElementById('tl-thumb');
-const tlHover  = document.getElementById('tl-hover');
-const timeline = document.getElementById('timeline');
-const tStart   = document.getElementById('t-start');
-const tEnd     = document.getElementById('t-end');
-const btnPlay  = document.getElementById('btn-play');
-const btnMute  = document.getElementById('btn-mute');
-const volSlider= document.getElementById('vol-slider');
-const volWrap  = document.getElementById('vol-slider-wrap');
-const liveBadge= document.getElementById('live-badge');
-const liveText = document.getElementById('live-text');
-const qualBtn  = document.getElementById('btn-quality');
-const qualMenu = document.getElementById('qual-menu');
-const qualList = document.getElementById('qual-list');
-const qualLabel= document.getElementById('qual-label');
-const btnFS    = document.getElementById('btn-fullscreen');
+const video       = document.getElementById('video');
+const app         = document.getElementById('app');
+const controls    = document.getElementById('controls');
+const loader      = document.getElementById('video-loader');
+const tlPos       = document.getElementById('tl-pos');
+const tlLive      = document.getElementById('tl-live');
+const tlThumb     = document.getElementById('tl-thumb');
+const tlHover     = document.getElementById('tl-hover');
+const timeline    = document.getElementById('timeline');
+const tStart      = document.getElementById('t-start');
+const tEnd        = document.getElementById('t-end');
+const btnPlay     = document.getElementById('btn-play');
+const btnMute     = document.getElementById('btn-mute');
+const volSlider   = document.getElementById('vol-slider');
+const volWrap     = document.getElementById('vol-slider-wrap');
+const liveBadge   = document.getElementById('live-badge');
+const liveText    = document.getElementById('live-text');
+const qualBtn     = document.getElementById('btn-quality');
+const qualMenu    = document.getElementById('qual-menu');
+const qualList    = document.getElementById('qual-list');
+const qualLabel   = document.getElementById('qual-label');
+const btnFS       = document.getElementById('btn-fullscreen');
 const btnChannels = document.getElementById('btn-channels');
-const btnEPG   = document.getElementById('btn-epg');
-const qualBadge= document.getElementById('quality-badge');
-const panel    = document.getElementById('channels-panel');
-const panelBD  = document.getElementById('panel-backdrop');
-const panelClose= document.getElementById('panel-close');
-const panelSearch= document.getElementById('panel-search');
+const btnEPG      = document.getElementById('btn-epg');
+const qualBadge   = document.getElementById('quality-badge');
+const panel       = document.getElementById('channels-panel');
+const panelBD     = document.getElementById('panel-backdrop');
+const panelClose  = document.getElementById('panel-close');
+const panelSearch = document.getElementById('panel-search');
 const channelsList= document.getElementById('channels-list');
-const chLogo   = document.getElementById('ch-logo');
-const chName   = document.getElementById('ch-name');
-const chProgram= document.getElementById('ch-program');
-const indLeft  = document.getElementById('ind-left');
-const indCenter= document.getElementById('ind-center');
-const indRight = document.getElementById('ind-right');
-const centerIcon= document.getElementById('center-icon');
+const chLogo      = document.getElementById('ch-logo');
+const chName      = document.getElementById('ch-name');
+const chProgram   = document.getElementById('ch-program');
+const indLeft     = document.getElementById('ind-left');
+const indCenter   = document.getElementById('ind-center');
+const indRight    = document.getElementById('ind-right');
+const centerIcon  = document.getElementById('center-icon');
 
 // ── HELPERS ──────────────────────────────
 function parseEPGDate(s) {
@@ -74,7 +75,8 @@ function showControls() {
 }
 function hideControls() {
   if (!panel.classList.contains('panel-hidden')) return;
-  if (!document.getElementById('epg-sheet').classList.contains('sheet-hidden')) return;
+  const epgSheet = document.getElementById('epg-sheet');
+  if (epgSheet && !epgSheet.classList.contains('sheet-hidden')) return;
   if (qualMenu && !qualMenu.classList.contains('hidden')) return;
   controls.classList.add('controls-hidden');
   controlsVisible = false;
@@ -83,9 +85,10 @@ function resetInactivity() {
   clearTimeout(inactivityTimer);
   inactivityTimer = setTimeout(hideControls, 3500);
 }
-app.addEventListener('mousemove', showControls);
-app.addEventListener('touchstart', showControls, {passive: true});
-app.addEventListener('mousedown', showControls);
+
+// Use pointermove for both mouse and touch
+app.addEventListener('pointermove', showControls, {passive: true});
+app.addEventListener('pointerdown', showControls, {passive: true});
 
 // ── VIDEO CLICK ───────────────────────────
 controls.addEventListener('click', (e) => {
@@ -94,7 +97,7 @@ controls.addEventListener('click', (e) => {
   video.paused ? video.play() : video.pause();
 }, true);
 
-// Touch zones
+// Touch zones double-tap
 let tapTimer = null, tapCount = 0;
 function handleTouchZone(side) {
   tapCount++;
@@ -130,7 +133,7 @@ function flashCenter(icon, stay = false) {
   indCenter.classList.remove('animating');
   void indCenter.offsetWidth;
   indCenter.classList.add('animating');
-  if (!stay) setTimeout(() => indCenter.classList.remove('animating'), 300);
+  if (!stay) setTimeout(() => indCenter.classList.remove('animating'), 600);
 }
 
 // ── SKIP ──────────────────────────────────
@@ -143,7 +146,7 @@ window.doSkip = function(s) {
     el.classList.remove('animating');
     void el.offsetWidth;
     el.classList.add('animating');
-    setTimeout(() => el.classList.remove('animating'), 450);
+    setTimeout(() => el.classList.remove('animating'), 500);
   }
   showControls();
 };
@@ -273,7 +276,6 @@ function getChannelTimes() {
 
 function updateTimeline() {
   const now = new Date();
-  // Update mini bars in panel
   document.querySelectorAll('.ch-item').forEach(item => {
     const s = parseEPGDate(item.dataset.start), e = parseEPGDate(item.dataset.stop);
     if (!s || !e) return;
@@ -288,13 +290,13 @@ function updateTimeline() {
   const { start, stop } = times;
   if (!start || !stop) return;
   tStart.textContent = fmtTime(start);
-  tEnd.textContent = fmtTime(stop);
+  tEnd.textContent   = fmtTime(stop);
   const totalMs = stop - start;
   if (totalMs <= 0) return;
 
   if (isArchive) {
     const pct = video.duration > 0 ? (video.currentTime / video.duration * 100) : 0;
-    tlPos.style.width = pct + '%';
+    tlPos.style.width  = pct + '%';
     tlLive.style.width = '100%';
     if (tlThumb) tlThumb.style.left = pct + '%';
   } else {
@@ -307,8 +309,8 @@ function updateTimeline() {
     let posPct;
     if (isFinite(livePoint) && livePoint > 0) {
       const behind = livePoint - video.currentTime;
-      const posMs = (now - start) - (behind * 1000);
-      posPct = Math.max(0, Math.min(liveEdgePct, (posMs / totalMs) * 100));
+      const posMs  = (now - start) - (behind * 1000);
+      posPct = Math.max(0, Math.min(liveEdgePct, posMs / totalMs * 100));
     } else {
       posPct = liveEdgePct;
     }
@@ -322,77 +324,139 @@ setInterval(updateTimeline, 500);
 video.addEventListener('seeked', updateTimeline);
 video.addEventListener('timeupdate', updateTimeline);
 
-// Timeline hover + seek
+// Timeline hover
 timeline.addEventListener('mousemove', (e) => {
   const times = getChannelTimes(); if (!times) return;
   const rect = timeline.getBoundingClientRect();
-  const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-  const hoverT = new Date(times.start.getTime() + (times.stop - times.start) * pos);
+  const pos  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  const hT   = new Date(times.start.getTime() + (times.stop - times.start) * pos);
   tlHover.style.display = 'block';
-  tlHover.style.left = (pos * 100) + '%';
-  tlHover.textContent = fmtTime(hoverT);
+  tlHover.style.left    = (pos * 100) + '%';
+  tlHover.textContent   = fmtTime(hT);
 });
 timeline.addEventListener('mouseleave', () => { tlHover.style.display = 'none'; });
 
+// ── SEEK — with live support via shift/catchup ────────
 function handleSeek(e) {
   if (e.cancelable) e.preventDefault();
   e.stopPropagation();
   const times = getChannelTimes(); if (!times) return;
   const { start, stop } = times;
-  const rect = timeline.getBoundingClientRect();
-  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-  const pos = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  const rect   = timeline.getBoundingClientRect();
+  const clientX= e.touches ? e.touches[0].clientX : e.clientX;
+  const pos    = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
   isUserBehind = pos < 0.96;
 
   if (isArchive) {
-    if (isFinite(video.duration) && video.duration > 0) video.currentTime = video.duration * pos;
+    // Archive seek
+    if (isFinite(video.duration) && video.duration > 0)
+      video.currentTime = video.duration * pos;
   } else {
-    const totalMs = stop - start;
-    const targetMs = start.getTime() + (totalMs * pos);
-    const behind = (Date.now() - targetMs) / 1000;
-    let livePoint = 0;
-    if (video.seekable && video.seekable.length > 0) livePoint = video.seekable.end(0);
-    else if (hls && hls.liveSyncPosition) livePoint = hls.liveSyncPosition;
-    else livePoint = video.duration;
-    if (isFinite(livePoint)) video.currentTime = Math.max(0, livePoint - behind);
+    // LIVE seek: use shift/catchup — reload stream with utc params
+    const totalMs   = stop - start;
+    const targetTime= new Date(start.getTime() + totalMs * pos);
+    const nowMs     = Date.now();
+    const targetMs  = targetTime.getTime();
+
+    // If seeking close to live edge (last 30s), just jump to live
+    if (nowMs - targetMs < 30000) {
+      let livePoint = 0;
+      if (video.seekable && video.seekable.length > 0) livePoint = video.seekable.end(0);
+      else if (hls && hls.liveSyncPosition) livePoint = hls.liveSyncPosition;
+      else livePoint = video.duration;
+      if (isFinite(livePoint)) { video.currentTime = livePoint; isUserBehind = false; }
+      return;
+    }
+
+    // Otherwise reload as archive (shift/catchup)
+    const ch = document.querySelector(`.ch-item[data-id="${currentChannelId}"]`);
+    if (!ch) return;
+    const startUnix = Math.floor(targetTime.getTime() / 1000);
+    const stopUnix  = Math.floor(stop.getTime() / 1000);
+    isArchive = true;
+    isUserBehind = true;
+
+    // Build archive URL
+    let finalUrl = ch.dataset.url.replace('http://94.241.90.115:8889', '/oneplay');
+    finalUrl += `?utc=${startUnix}&lutc=${stopUnix}&_t=${Date.now()}`;
+
+    // Reload stream
+    const isApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    video.pause();
+    if (!isApple) { video.src = ''; video.load(); }
+    if (hls) { hls.destroy(); hls = null; }
+
+    currentArchiveData = {
+      title: ch.dataset.title || '',
+      start: formatUnixToEPG(startUnix),
+      stop:  formatUnixToEPG(stopUnix),
+      desc:  ch.dataset.desc  || '',
+      image: ch.dataset.img   || '',
+    };
+
+    if (Hls.isSupported() && !isApple) {
+      hls = new Hls({ liveSyncDurationCount: 0, enableWorker: true, startLevel: -1, manifestLoadingMaxRetry: 10 });
+      hls.loadSource(finalUrl);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); updatePlayIcon(); buildQualMenu(); });
+      hls.on(Hls.Events.FRAG_BUFFERED, () => loader.classList.add('hidden'));
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = finalUrl; video.load(); video.play().catch(() => {});
+    }
   }
   showControls();
 }
-timeline.addEventListener('mousedown', handleSeek);
+
+// Helper: unix timestamp → EPG string "YYYYMMDDHHmmss +0100"
+function formatUnixToEPG(unix) {
+  const d = new Date(unix * 1000);
+  return d.getFullYear()
+    + (d.getMonth()+1).toString().padStart(2,'0')
+    + d.getDate().toString().padStart(2,'0')
+    + d.getHours().toString().padStart(2,'0')
+    + d.getMinutes().toString().padStart(2,'0')
+    + '00 +0000';
+}
+
+timeline.addEventListener('mousedown',  handleSeek);
 timeline.addEventListener('touchstart', handleSeek, { passive: false });
 
-// ── GO TO LIVE ────────────────────────────
-// Click on live badge → jump to live edge
+// ── GO TO LIVE (badge click) ───────────────
 liveBadge.addEventListener('click', (e) => {
   e.stopPropagation();
-  if (isArchive) return; // In archive mode, clicking live badge goes back to live channel
+  if (isArchive) {
+    // Go back to live for this channel
+    const ch = document.querySelector(`.ch-item[data-id="${currentChannelId}"]`);
+    if (ch) {
+      isArchive = false; currentArchiveData = null; isUserBehind = false;
+      playStream(ch.dataset.url, ch.querySelector('.ch-name')?.textContent || '',
+        ch.querySelector('.ch-img')?.src || '', currentChannelId);
+    }
+    return;
+  }
   // Jump to live edge
   let livePoint = 0;
   if (video.seekable && video.seekable.length > 0) livePoint = video.seekable.end(0);
   else if (hls && hls.liveSyncPosition) livePoint = hls.liveSyncPosition;
   else livePoint = video.duration;
-  if (isFinite(livePoint) && livePoint > 0) {
-    video.currentTime = livePoint;
-    isUserBehind = false;
-  }
+  if (isFinite(livePoint) && livePoint > 0) { video.currentTime = livePoint; isUserBehind = false; }
 });
 
 // ── STREAM PLAYBACK ───────────────────────
 function playStream(url, name, logo, channelId, startUnix = null, archiveData = null) {
-  isUserBehind = false;
-  isArchive = !!startUnix;
+  isUserBehind    = false;
+  isArchive       = !!startUnix;
   currentArchiveData = archiveData;
-  currentChannelId = channelId;
+  currentChannelId   = channelId;
   localStorage.setItem('lastChannelId', channelId);
   loader.classList.remove('hidden');
 
-  // Update UI
-  chName.textContent = name;
-  chProgram.textContent = isArchive ? (archiveData?.title || '') : '';
+  chName.textContent   = name;
+  chProgram.textContent= isArchive ? (archiveData?.title || '') : '';
   if (logo) { chLogo.src = logo; chLogo.classList.remove('hidden'); }
   else chLogo.classList.add('hidden');
 
-  // Highlight active channel in panel — works for both live and archive
+  // Highlight active in panel
   document.querySelectorAll('.ch-item').forEach(el => el.classList.toggle('active', el.dataset.id === channelId));
 
   const isApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -414,53 +478,33 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
   if (hls) { hls.destroy(); hls = null; }
 
   if (Hls.isSupported() && !isApple) {
-    hls = new Hls({
-      liveSyncDurationCount: isArchive ? 0 : 3,
-      enableWorker: true, startLevel: -1,
-      manifestLoadingMaxRetry: 15, levelLoadingMaxRetry: 15
-    });
+    hls = new Hls({ liveSyncDurationCount: isArchive ? 0 : 3, enableWorker: true, startLevel: -1, manifestLoadingMaxRetry: 15, levelLoadingMaxRetry: 15 });
     hls.loadSource(finalUrl);
     hls.attachMedia(video);
-    hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      video.play().catch(() => {});
-      updatePlayIcon(); buildQualMenu();
-    });
+    hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); updatePlayIcon(); buildQualMenu(); });
     hls.on(Hls.Events.FRAG_BUFFERED, () => loader.classList.add('hidden'));
-    hls.on(Hls.Events.ERROR, (e, d) => { if (d.fatal) loader.classList.add('hidden'); });
+    hls.on(Hls.Events.ERROR, (ev, d) => { if (d.fatal) loader.classList.add('hidden'); });
   } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-    video.src = finalUrl; video.load();
-    video.play().catch(() => {});
-    updatePlayIcon();
+    video.src = finalUrl; video.load(); video.play().catch(() => {}); updatePlayIcon();
   }
-
   video.onloadedmetadata = () => updateTimeline();
 }
 
 video.addEventListener('ended', () => {
   if (isArchive) playNextProgram();
   else {
-    // Restart live
     const el = document.querySelector('.ch-item.active');
     if (el) el.click();
-  }
-});
-
-// After archive finishes → go back to live automatically and fix timeline
-video.addEventListener('timeupdate', () => {
-  if (!isArchive || !video.duration) return;
-  if (video.duration - video.currentTime < 2) {
-    // End of archive segment reached — play next or go live
   }
 });
 
 // ── NEXT PROGRAM ─────────────────────────
 async function playNextProgram() {
   if (!isArchive || !currentArchiveData || !currentChannelId) return;
-  const stopDate = parseEPGDate(currentArchiveData.stop);
-  const stopUnix = Math.floor(stopDate.getTime() / 1000);
-  const dayStr = stopDate.getFullYear() + (stopDate.getMonth()+1).toString().padStart(2,'0') + stopDate.getDate().toString().padStart(2,'0');
-
-  let dayData = window.epgCache?.[dayStr]?.[currentChannelId];
+  const stopDate  = parseEPGDate(currentArchiveData.stop);
+  const stopUnix  = Math.floor(stopDate.getTime() / 1000);
+  const dayStr    = stopDate.getFullYear() + (stopDate.getMonth()+1).toString().padStart(2,'0') + stopDate.getDate().toString().padStart(2,'0');
+  let dayData     = window.epgCache?.[dayStr]?.[currentChannelId];
   if (!dayData) {
     try {
       const r = await fetch(`/epg-data?id=${encodeURIComponent(currentChannelId)}&full=true&date=${dayStr}`);
@@ -473,42 +517,27 @@ async function playNextProgram() {
     } catch(e) {}
   }
   if (dayData?.length) {
-    const next = dayData.find(p => Math.floor(parseEPGDate(p.start).getTime() / 1000) >= stopUnix);
+    const next = dayData.find(p => Math.floor(parseEPGDate(p.start).getTime()/1000) >= stopUnix);
     if (next) {
       const el = document.querySelector(`.ch-item[data-id="${currentChannelId}"]`);
       if (!el) return;
-      const startUnix = Math.floor(parseEPGDate(next.start).getTime() / 1000);
-      // Check if "next" is current live program → switch to live
-      const nowUnix = Math.floor(Date.now() / 1000);
-      if (startUnix <= nowUnix && Math.floor(parseEPGDate(next.stop).getTime() / 1000) > nowUnix) {
-        // This is the currently airing live program → go to live
-        isArchive = false;
-        currentArchiveData = null;
-        const url = el.dataset.url;
-        const name = el.querySelector('.ch-name')?.textContent || '';
-        const logo = el.querySelector('img')?.src || '';
-        playStream(url, name, logo, currentChannelId);
+      const nextStart = Math.floor(parseEPGDate(next.start).getTime()/1000);
+      const nowUnix   = Math.floor(Date.now()/1000);
+      if (nextStart <= nowUnix && Math.floor(parseEPGDate(next.stop).getTime()/1000) > nowUnix) {
+        // Current live → go live
+        isArchive = false; currentArchiveData = null;
+        playStream(el.dataset.url, el.querySelector('.ch-name')?.textContent||'', el.querySelector('.ch-img')?.src||'', currentChannelId);
         return;
       }
-      const url = el.dataset.url;
-      const name = el.querySelector('.ch-name')?.textContent || '';
-      const logo = el.querySelector('img')?.src || '';
-      playStream(url, name, logo, currentChannelId, startUnix, next);
+      playStream(el.dataset.url, el.querySelector('.ch-name')?.textContent||'', el.querySelector('.ch-img')?.src||'', currentChannelId, nextStart, next);
       return;
     }
   }
-  // Fall back to live
   const el = document.querySelector('.ch-item.active');
-  if (el) {
-    isArchive = false; currentArchiveData = null;
-    const url = el.dataset.url;
-    const name = el.querySelector('.ch-name')?.textContent || '';
-    const logo = el.querySelector('img')?.src || '';
-    playStream(url, name, logo, currentChannelId);
-  }
+  if (el) { isArchive = false; currentArchiveData = null; el.click(); }
 }
 
-// ── EPG DATA ──────────────────────────────
+// ── EPG FETCH ─────────────────────────────
 async function fetchEPG(id) {
   try {
     const r = await fetch(`/epg-data?id=${encodeURIComponent(id)}`);
@@ -516,15 +545,13 @@ async function fetchEPG(id) {
     const el = document.querySelector(`.ch-item[data-id="${id}"]`);
     if (el && d.title) {
       el.dataset.start = d.start || '';
-      el.dataset.stop = d.stop || '';
+      el.dataset.stop  = d.stop  || '';
       el.dataset.title = d.title;
-      el.dataset.desc = d.desc || '';
-      el.dataset.img = d.image || '';
+      el.dataset.desc  = d.desc  || '';
+      el.dataset.img   = d.image || '';
       const epgEl = el.querySelector('.ch-epg');
       if (epgEl) epgEl.textContent = d.title;
-      if (id === currentChannelId && !isArchive) {
-        chProgram.textContent = d.title;
-      }
+      if (id === currentChannelId && !isArchive) chProgram.textContent = d.title;
     }
   } catch(e) {}
 }
@@ -533,9 +560,9 @@ async function fetchEPG(id) {
 window.addEventListener('keydown', (e) => {
   if (document.activeElement.tagName === 'INPUT') return;
   switch(e.code) {
-    case 'Space': e.preventDefault(); video.paused ? video.play() : video.pause(); break;
-    case 'ArrowRight': e.preventDefault(); doSkip(10); break;
-    case 'ArrowLeft': e.preventDefault(); doSkip(-10); break;
+    case 'Space':    e.preventDefault(); video.paused ? video.play() : video.pause(); break;
+    case 'ArrowRight': e.preventDefault(); doSkip(10);  break;
+    case 'ArrowLeft':  e.preventDefault(); doSkip(-10); break;
     case 'KeyF': e.preventDefault();
       if (!document.fullscreenElement) app.requestFullscreen?.();
       else document.exitFullscreen?.(); break;
@@ -545,13 +572,12 @@ window.addEventListener('keydown', (e) => {
 
 // ── CHANNELS PANEL ────────────────────────
 btnChannels.onclick = (e) => { e.stopPropagation(); openPanel(); };
-panelClose.onclick = closePanel;
-panelBD.onclick = closePanel;
+panelClose.onclick  = closePanel;
+panelBD.onclick     = closePanel;
 
 function openPanel() {
   panel.classList.remove('panel-hidden');
   panelBD.classList.remove('hidden');
-  // Scroll active channel into view
   setTimeout(() => {
     const active = channelsList.querySelector('.ch-item.active');
     if (active) active.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -570,13 +596,26 @@ panelSearch.oninput = () => {
   });
 };
 
+// ── FAVORITES TOGGLE ──────────────────────
+function toggleFav(id) {
+  const idx = favorites.indexOf(id);
+  if (idx > -1) favorites.splice(idx, 1);
+  else favorites.push(id);
+  localStorage.setItem('favs', JSON.stringify(favorites));
+  // Re-sort and re-render without full reload
+  const sorted = [...channelsData].sort((a,b) =>
+    (favorites.includes(b.id)?1:0) - (favorites.includes(a.id)?1:0));
+  renderChannels(sorted);
+  if (window.lucide) lucide.createIcons();
+}
+
 // ── LOAD PLAYLIST ─────────────────────────
 async function loadPlaylist() {
   try {
-    const r = await fetch('playlist.m3u');
+    const r    = await fetch('playlist.m3u');
     const text = await r.text();
-    const lines = text.split('\n');
-    let channels = [];
+    const lines= text.split('\n');
+    channelsData = [];
     for (let i = 0; i < lines.length; i++) {
       if (!lines[i].startsWith('#EXTINF')) continue;
       const nameM = lines[i].match(/tvg-name="([^"]+)"/) || [null, lines[i].split(',')[1]];
@@ -587,10 +626,11 @@ async function loadPlaylist() {
       const logo  = logoM ? logoM[1] : '';
       let url = '';
       for (let j = i+1; j < lines.length; j++) { if (lines[j].startsWith('http')) { url = lines[j].trim(); break; } }
-      if (url) channels.push({ id, name, logo, url });
+      if (url) channelsData.push({ id, name, logo, url });
     }
-    channels.sort((a,b) => (favorites.includes(b.id) ? 1 : 0) - (favorites.includes(a.id) ? 1 : 0));
-    renderChannels(channels);
+    const sorted = [...channelsData].sort((a,b) =>
+      (favorites.includes(b.id)?1:0) - (favorites.includes(a.id)?1:0));
+    renderChannels(sorted);
     if (window.lucide) lucide.createIcons();
     if (currentChannelId) {
       const el = document.querySelector(`.ch-item[data-id="${currentChannelId}"]`);
@@ -611,7 +651,7 @@ function renderChannels(channels) {
       <i data-lucide="star" class="ch-fav${isFav ? ' starred' : ''}"></i>
       <img class="ch-img" src="${ch.logo}" onerror="this.src='https://via.placeholder.com/38?text=TV'" alt="">
       <div class="ch-info">
-        <div class="ch-name">${ch.name}</div>
+        <div class="ch-name">${ch.name}${isFav ? '<span class="fav-dot">★</span>' : ''}</div>
         <div class="ch-epg">Načítám...</div>
         <div class="ch-bar"><div class="ch-bar-inner" style="width:0%"></div></div>
       </div>`;
@@ -619,7 +659,6 @@ function renderChannels(channels) {
     el.querySelector('.ch-fav').addEventListener('click', (e) => {
       e.stopPropagation(); toggleFav(ch.id);
     });
-
     el.onclick = (e) => {
       if (e.target.closest('.ch-fav')) return;
       document.querySelectorAll('.ch-item').forEach(x => x.classList.remove('active'));
@@ -628,23 +667,14 @@ function renderChannels(channels) {
       playStream(ch.url, ch.name, ch.logo, ch.id);
       closePanel();
     };
-
     channelsList.appendChild(el);
     fetchEPG(ch.id);
   });
 }
 
-function toggleFav(id) {
-  const idx = favorites.indexOf(id);
-  if (idx > -1) favorites.splice(idx, 1);
-  else favorites.push(id);
-  localStorage.setItem('favs', JSON.stringify(favorites));
-  loadPlaylist();
-}
-
 // ── EPG SHEET ─────────────────────────────
 btnEPG.onclick = (e) => { e.stopPropagation(); openEPGSheet(); };
-document.getElementById('epg-close').onclick = closeEPGSheet;
+document.getElementById('epg-close').onclick   = closeEPGSheet;
 document.getElementById('epg-backdrop').onclick = closeEPGSheet;
 
 function openEPGSheet() {
@@ -660,11 +690,9 @@ function closeEPGSheet() {
   document.getElementById('epg-backdrop').classList.add('hidden');
 }
 window.closeEPG = closeEPGSheet;
-
-// Expose state for EPG grid
-window.getCurrentChannelId = () => currentChannelId;
+window.getCurrentChannelId   = () => currentChannelId;
 window.getCurrentArchiveData = () => currentArchiveData;
-window.getIsArchive = () => isArchive;
+window.getIsArchive          = () => isArchive;
 
 // ── INIT ──────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
