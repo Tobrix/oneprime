@@ -1,10 +1,8 @@
 /* ═══════════════════════════════════════════
-   ONEPRIMETV — script.js (Fix v4)
-   Key fixes:
-   - Live seek via video.currentTime (HLS buffer)
-   - Archive reload with full program stop time
-   - doSkip works in both live+archive
-   - No stream reload on small seeks
+   ONEPRIMETV — script.js (Fix v5)
+   Live seek: uses video.currentTime in HLS DVR buffer only,
+   NO stream reload on timeline click or skip buttons.
+   Archive stall fix: lutc extended + fragLoadingMaxRetry.
 ═══════════════════════════════════════════ */
 'use strict';
 
@@ -58,25 +56,34 @@ const indCenter   = document.getElementById('ind-center');
 const indRight    = document.getElementById('ind-right');
 const centerIcon  = document.getElementById('center-icon');
 
-// ── HELPERS ──────────────────────────────
+// ── EPG DATE PARSER (with timezone) ──────
 function parseEPGDate(s) {
   if (!s) return null;
   const parts = s.trim().split(' ');
   const t  = parts[0];
   const tz = parts[1] || '+0000';
-  const sign = tz[0] === '-' ? -1 : 1;
-  const tzH  = +(tz.slice(1,3)||0);
-  const tzM  = +(tz.slice(3,5)||0);
-  const tzOff= sign * (tzH * 60 + tzM) * 60000;
-  const utc  = Date.UTC(+t.slice(0,4), +t.slice(4,6)-1, +t.slice(6,8),
-                        +t.slice(8,10), +t.slice(10,12), +(t.slice(12,14)||0));
-  return new Date(utc - tzOff);
+  const sign   = tz[0] === '-' ? -1 : 1;
+  const tzOffMs= sign * (+(tz.slice(1,3)||0) * 60 + +(tz.slice(3,5)||0)) * 60000;
+  const utcMs  = Date.UTC(+t.slice(0,4), +t.slice(4,6)-1, +t.slice(6,8),
+                          +t.slice(8,10), +t.slice(10,12), +(t.slice(12,14)||0));
+  return new Date(utcMs - tzOffMs);
 }
 function fmtTime(d) {
   if (!d) return '--:--';
   const dt = typeof d === 'string' ? parseEPGDate(d) : d;
   if (!dt) return '--:--';
   return dt.getHours().toString().padStart(2,'0') + ':' + dt.getMinutes().toString().padStart(2,'0');
+}
+
+// ── GET HLS LIVE EDGE ─────────────────────
+function getLiveEdge() {
+  if (video.seekable && video.seekable.length > 0) return video.seekable.end(0);
+  if (hls?.liveSyncPosition) return hls.liveSyncPosition;
+  return isFinite(video.duration) ? video.duration : 0;
+}
+function getSeekableStart() {
+  if (video.seekable && video.seekable.length > 0) return video.seekable.start(0);
+  return 0;
 }
 
 // ── CONTROLS VISIBILITY ───────────────────
@@ -121,7 +128,7 @@ function handleTouchZone(side) {
     doSkip(side === 'left' ? -10 : 10);
   }
 }
-document.getElementById('tz-left').addEventListener('click', () => handleTouchZone('left'));
+document.getElementById('tz-left').addEventListener('click',  () => handleTouchZone('left'));
 document.getElementById('tz-right').addEventListener('click', () => handleTouchZone('right'));
 
 // ── PLAY / PAUSE ──────────────────────────
@@ -146,27 +153,34 @@ function flashCenter(icon, stay = false) {
 }
 
 // ── SKIP ─────────────────────────────────
-// For live: skip uses video.currentTime within HLS buffer
-// For archive: skip uses video.currentTime normally
+// KEY DESIGN: skip NEVER reloads stream.
+// Live: seeks within HLS DVR buffer using video.currentTime.
+//   - If going back beyond buffer start → clamp to buffer start
+//   - If going forward past live edge → jump to live edge
+// Archive: seeks video.currentTime normally (range 0..duration)
 window.doSkip = function(s) {
   try {
+    const target = video.currentTime + s;
     if (!isArchive) {
-      // Live: check HLS buffer range
-      let seekable = 0;
-      if (video.seekable && video.seekable.length > 0) seekable = video.seekable.start(0);
-      const target = video.currentTime + s;
-      // If going back further than buffer allows, trigger archive seek
-      if (target < seekable - 1) {
-        seekBackToTime(target);
-        return;
+      // Live DVR seek
+      const liveEdge = getLiveEdge();
+      const bufStart = getSeekableStart();
+      if (isFinite(liveEdge) && liveEdge > 0) {
+        if (s > 0 && target >= liveEdge - 5) {
+          // Forward → snap to live edge
+          video.currentTime = liveEdge;
+          isUserBehind = false;
+        } else {
+          // Clamp within buffer
+          video.currentTime = Math.max(bufStart, Math.min(liveEdge, target));
+          isUserBehind = (liveEdge - video.currentTime) > 10;
+        }
       }
-      video.currentTime = Math.max(seekable, target);
-      if (s < 0) isUserBehind = true;
     } else {
-      video.currentTime = Math.max(0, video.currentTime + s);
-      if (s < 0) isUserBehind = true;
+      // Archive seek within clip
+      video.currentTime = Math.max(0, Math.min(isFinite(video.duration) ? video.duration : target, target));
+      isUserBehind = true;
     }
-    if (s > 0 && isFinite(video.duration) && video.duration - video.currentTime < 20) isUserBehind = false;
   } catch(e) {}
 
   const el = s < 0 ? indLeft : indRight;
@@ -213,8 +227,7 @@ btnFS.onclick = (e) => {
     else if (app.requestFullscreen) app.requestFullscreen();
     else if (app.webkitRequestFullscreen) app.webkitRequestFullscreen();
   } else {
-    if (document.exitFullscreen) document.exitFullscreen();
-    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
   }
 };
 document.addEventListener('fullscreenchange', () => {
@@ -236,9 +249,9 @@ function updateLiveStatus() {
   liveBadge.classList.toggle('recording', recording);
   liveText.textContent = isArchive ? 'ARCHIV' : (recording ? 'ZÁZNAM' : 'LIVE');
 }
-video.addEventListener('play', updateLiveStatus);
-video.addEventListener('pause', updateLiveStatus);
-video.addEventListener('seeking', updateLiveStatus);
+video.addEventListener('play',       updateLiveStatus);
+video.addEventListener('pause',      updateLiveStatus);
+video.addEventListener('seeking',    updateLiveStatus);
 video.addEventListener('timeupdate', updateLiveStatus);
 
 // ── QUALITY ───────────────────────────────
@@ -253,7 +266,7 @@ document.addEventListener('click', (e) => { if (!e.target.closest('.qual-wrap'))
 function buildQualMenu() {
   qualList.innerHTML = '';
   const isApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  if (isApple || !hls || !hls.levels || !hls.levels.length) {
+  if (isApple || !hls?.levels?.length) {
     qualList.innerHTML = '<div class="qual-opt active">Auto (systém)</div>';
     qualLabel.textContent = 'Auto'; return;
   }
@@ -296,7 +309,9 @@ video.addEventListener('loadstart', () => loader.classList.remove('hidden'));
 // ── TIMELINE ─────────────────────────────
 function getChannelTimes() {
   if (isArchive && currentArchiveData) {
-    return { start: parseEPGDate(currentArchiveData.start), stop: parseEPGDate(currentArchiveData.stop) };
+    const s = parseEPGDate(currentArchiveData.start);
+    const e = parseEPGDate(currentArchiveData.stop);
+    if (s && e) return { start: s, stop: e };
   }
   const el = document.querySelector(`.ch-item[data-id="${currentChannelId}"]`);
   if (!el) return null;
@@ -331,16 +346,15 @@ function updateTimeline() {
     tlLive.style.width = '100%';
     if (tlThumb) tlThumb.style.left = pct + '%';
   } else {
+    // Live: show position relative to program time window
     const liveEdgePct = Math.max(0, Math.min(100, (now - start) / totalMs * 100));
     tlLive.style.width = liveEdgePct + '%';
-    let livePoint = 0;
-    if (video.seekable && video.seekable.length > 0) livePoint = video.seekable.end(0);
-    else if (hls && hls.liveSyncPosition) livePoint = hls.liveSyncPosition;
-    else livePoint = video.duration;
+
+    const liveEdge = getLiveEdge();
     let posPct;
-    if (isFinite(livePoint) && livePoint > 0) {
-      const behind = livePoint - video.currentTime;
-      const posMs  = (now - start) - (behind * 1000);
+    if (isFinite(liveEdge) && liveEdge > 0) {
+      const behindSec = liveEdge - video.currentTime;
+      const posMs     = (now - start) - behindSec * 1000;
       posPct = Math.max(0, Math.min(liveEdgePct, posMs / totalMs * 100));
     } else {
       posPct = liveEdgePct;
@@ -352,24 +366,25 @@ function updateTimeline() {
   updateQualBadge();
 }
 setInterval(updateTimeline, 500);
-video.addEventListener('seeked',      updateTimeline);
-video.addEventListener('timeupdate',  updateTimeline);
+video.addEventListener('seeked',     updateTimeline);
+video.addEventListener('timeupdate', updateTimeline);
 
-// Timeline hover
+// Timeline hover label
 timeline.addEventListener('mousemove', (e) => {
   const times = getChannelTimes(); if (!times) return;
   const rect = timeline.getBoundingClientRect();
   const pos  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
   const hT   = new Date(times.start.getTime() + (times.stop - times.start) * pos);
   tlHover.style.display = 'block';
-  tlHover.style.left    = (pos * 100) + '%';
+  tlHover.style.left    = pos * 100 + '%';
   tlHover.textContent   = fmtTime(hT);
 });
 timeline.addEventListener('mouseleave', () => { tlHover.style.display = 'none'; });
 
-// ── SEEK ─────────────────────────────────
-// Live seek: try video.currentTime first (HLS DVR buffer),
-// only reload stream if target is outside buffer
+// ── SEEK ON TIMELINE CLICK ────────────────
+// KEY: Never reloads stream. Uses video.currentTime only.
+// Live: converts position to seconds-behind-live, seeks in DVR buffer.
+// Archive: seeks by proportion of video.duration.
 function handleSeek(e) {
   if (e.cancelable) e.preventDefault();
   e.stopPropagation();
@@ -385,140 +400,63 @@ function handleSeek(e) {
       isUserBehind = pos < 0.96;
     }
   } else {
-    // Live seek
-    const totalMs    = stop - start;
-    const targetTime = new Date(start.getTime() + totalMs * pos);
-    const nowMs      = Date.now();
-    const targetMs   = targetTime.getTime();
+    // Live seek via DVR buffer — NO stream reload
+    const totalMs       = stop - start;
+    const targetWallMs  = start.getTime() + totalMs * pos;
+    const nowMs         = Date.now();
+    const behindLiveSec = (nowMs - targetWallMs) / 1000;
 
-    isUserBehind = pos < 0.96;
+    const liveEdge = getLiveEdge();
+    const bufStart = getSeekableStart();
 
-    // Near live edge (< 30s behind) — just jump to live edge
-    if (nowMs - targetMs < 30000) {
-      let livePoint = 0;
-      if (video.seekable && video.seekable.length > 0) livePoint = video.seekable.end(0);
-      else if (hls && hls.liveSyncPosition) livePoint = hls.liveSyncPosition;
-      else livePoint = video.duration;
-      if (isFinite(livePoint)) { video.currentTime = livePoint; isUserBehind = false; }
+    if (!isFinite(liveEdge) || liveEdge <= 0) {
+      // No seekable info yet — skip
       showControls(); return;
     }
 
-    // Try HLS buffer seek first
-    if (video.seekable && video.seekable.length > 0) {
-      const bufferStart = video.seekable.start(0); // seconds from start of HLS
-      const bufferEnd   = video.seekable.end(0);
-      // Calculate target in video time
-      let livePoint = bufferEnd;
-      if (hls?.liveSyncPosition) livePoint = hls.liveSyncPosition;
-      const secondsBehindLive = (nowMs - targetMs) / 1000;
-      const targetVideoTime   = livePoint - secondsBehindLive;
-
-      if (targetVideoTime >= bufferStart && targetVideoTime <= bufferEnd) {
-        // Within HLS buffer — just seek
+    if (behindLiveSec <= 5) {
+      // Clicking at live edge → snap to live
+      video.currentTime = liveEdge;
+      isUserBehind = false;
+    } else {
+      const targetVideoTime = liveEdge - behindLiveSec;
+      if (targetVideoTime >= bufStart) {
+        // Within DVR buffer — just seek
         video.currentTime = targetVideoTime;
-        showControls(); return;
+        isUserBehind = true;
+      } else {
+        // Beyond DVR buffer — clamp to start of buffer
+        video.currentTime = bufStart;
+        isUserBehind = true;
       }
     }
-
-    // Outside buffer — reload as archive/catchup
-    seekBackToTime(targetTime, start, stop);
   }
   showControls();
 }
-
-// Reload stream as archive from a target Date
-function seekBackToTime(targetTime, progStart, progStop) {
-  const ch = document.querySelector(`.ch-item[data-id="${currentChannelId}"]`);
-  if (!ch) return;
-
-  // Use program boundaries for lutc so stream doesn't expire early
-  const startUnix = Math.floor(targetTime.getTime() / 1000);
-  let stopUnix;
-  if (progStop) {
-    stopUnix = Math.floor(progStop.getTime() / 1000);
-  } else {
-    // Get current program stop time
-    const el = document.querySelector(`.ch-item[data-id="${currentChannelId}"]`);
-    const epgStop = el ? parseEPGDate(el.dataset.stop) : null;
-    stopUnix = epgStop ? Math.floor(epgStop.getTime() / 1000)
-                        : startUnix + 7200; // fallback 2h
-  }
-  // Always give at least 90 min of window
-  if (stopUnix - startUnix < 90 * 60) stopUnix = startUnix + 90 * 60;
-
-  isArchive = true;
-  isUserBehind = true;
-
-  // Temporarily store archive data for timeline display
-  currentArchiveData = {
-    title: ch.dataset.title || '',
-    start: formatUnixToEPG(startUnix),
-    stop:  formatUnixToEPG(stopUnix),
-    desc:  ch.dataset.desc  || '',
-    image: ch.dataset.img   || '',
-  };
-
-  let finalUrl = ch.dataset.url.replace('http://94.241.90.115:8889', '/oneplay');
-  finalUrl += `?utc=${startUnix}&lutc=${stopUnix}&_t=${Date.now()}`;
-
-  const isApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  video.pause();
-  if (!isApple) { video.src = ''; video.load(); }
-  if (hls) { hls.destroy(); hls = null; }
-
-  loader.classList.remove('hidden');
-
-  if (Hls.isSupported() && !isApple) {
-    hls = new Hls({
-      liveSyncDurationCount: 0,
-      enableWorker: true, startLevel: -1,
-      manifestLoadingMaxRetry: 10, levelLoadingMaxRetry: 10,
-      // KEY: Extend fragment retry to prevent 10-min stall
-      fragLoadingMaxRetry: 10,
-      fragLoadingRetryDelay: 1000,
-    });
-    hls.loadSource(finalUrl);
-    hls.attachMedia(video);
-    hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); updatePlayIcon(); buildQualMenu(); });
-    hls.on(Hls.Events.FRAG_BUFFERED,   () => loader.classList.add('hidden'));
-    hls.on(Hls.Events.ERROR, (ev, d)   => {
-      if (d.fatal) { console.warn('HLS fatal error', d.type); loader.classList.add('hidden'); }
-    });
-  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-    video.src = finalUrl; video.load(); video.play().catch(() => {});
-  }
-}
-
-function formatUnixToEPG(unix) {
-  const d = new Date(unix * 1000);
-  return d.getFullYear()
-    + (d.getMonth()+1).toString().padStart(2,'0')
-    + d.getDate().toString().padStart(2,'0')
-    + d.getHours().toString().padStart(2,'0')
-    + d.getMinutes().toString().padStart(2,'0')
-    + '00 +0000';
-}
-
 timeline.addEventListener('mousedown',  handleSeek);
 timeline.addEventListener('touchstart', handleSeek, { passive: false });
 
-// ── GO TO LIVE (badge click) ──────────────
+// ── LIVE BADGE CLICK — go to live edge ────
 liveBadge.addEventListener('click', (e) => {
   e.stopPropagation();
   if (isArchive) {
+    // Exit archive → reload as live
     const ch = document.querySelector(`.ch-item[data-id="${currentChannelId}"]`);
     if (ch) {
       isArchive = false; currentArchiveData = null; isUserBehind = false;
-      playStream(ch.dataset.url, ch.querySelector('.ch-name')?.textContent.replace('★','').trim() || '',
-        ch.querySelector('.ch-img')?.src || '', currentChannelId);
+      playStream(ch.dataset.url,
+        ch.querySelector('.ch-name')?.textContent.replace('★','').trim() || '',
+        ch.querySelector('.ch-img')?.src || '',
+        currentChannelId);
     }
     return;
   }
-  let livePoint = 0;
-  if (video.seekable && video.seekable.length > 0) livePoint = video.seekable.end(0);
-  else if (hls && hls.liveSyncPosition) livePoint = hls.liveSyncPosition;
-  else livePoint = video.duration;
-  if (isFinite(livePoint) && livePoint > 0) { video.currentTime = livePoint; isUserBehind = false; }
+  // Snap to live edge in DVR buffer
+  const liveEdge = getLiveEdge();
+  if (isFinite(liveEdge) && liveEdge > 0) {
+    video.currentTime = liveEdge;
+    isUserBehind = false;
+  }
 });
 
 // ── STREAM PLAYBACK ───────────────────────
@@ -542,15 +480,18 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
 
   if (startUnix) {
     let stopUnix;
-    if (archiveData?.stop) stopUnix = Math.floor(parseEPGDate(archiveData.stop).getTime() / 1000);
-    else {
+    if (archiveData?.stop) {
+      stopUnix = Math.floor(parseEPGDate(archiveData.stop).getTime() / 1000);
+    } else {
       const el = document.querySelector(`.ch-item[data-id="${channelId}"]`);
       stopUnix = Math.floor((el ? parseEPGDate(el.dataset.stop) : new Date()).getTime() / 1000);
     }
     if (stopUnix <= startUnix) stopUnix = startUnix + 3600;
-    // Add buffer: extend stop by 15 min so stream doesn't expire mid-program
-    stopUnix += 15 * 60;
-    finalUrl += `${finalUrl.includes('?') ? '&' : '?'}utc=${startUnix}&lutc=${stopUnix}&_t=${Date.now()}`;
+    // FIX for stalling: add 30 min buffer beyond program end
+    // so the stream token doesn't expire mid-playback
+    stopUnix += 30 * 60;
+    const sep = finalUrl.includes('?') ? '&' : '?';
+    finalUrl += `${sep}utc=${startUnix}&lutc=${stopUnix}&_t=${Date.now()}`;
   }
 
   video.pause();
@@ -560,18 +501,38 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
   if (Hls.isSupported() && !isApple) {
     hls = new Hls({
       liveSyncDurationCount: isArchive ? 0 : 3,
-      enableWorker: true, startLevel: -1,
-      manifestLoadingMaxRetry: 15, levelLoadingMaxRetry: 15,
-      fragLoadingMaxRetry: 15,
+      enableWorker: true,
+      startLevel: -1,
+      manifestLoadingMaxRetry: 15,
+      levelLoadingMaxRetry: 15,
+      // FIX: increase frag retry so it doesn't stall at segment boundaries
+      fragLoadingMaxRetry: 20,
       fragLoadingRetryDelay: 1000,
+      fragLoadingMaxRetryTimeout: 60000,
     });
     hls.loadSource(finalUrl);
     hls.attachMedia(video);
-    hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); updatePlayIcon(); buildQualMenu(); });
-    hls.on(Hls.Events.FRAG_BUFFERED,   () => loader.classList.add('hidden'));
-    hls.on(Hls.Events.ERROR, (ev, d)   => { if (d.fatal) loader.classList.add('hidden'); });
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      video.play().catch(() => {});
+      updatePlayIcon();
+      buildQualMenu();
+    });
+    hls.on(Hls.Events.FRAG_BUFFERED, () => loader.classList.add('hidden'));
+    hls.on(Hls.Events.ERROR, (ev, d) => {
+      if (d.fatal) {
+        console.warn('HLS fatal error:', d.type, d.details);
+        loader.classList.add('hidden');
+        // Fatal network error → try to recover
+        if (d.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          setTimeout(() => { if (hls) hls.startLoad(); }, 2000);
+        }
+      }
+    });
   } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-    video.src = finalUrl; video.load(); video.play().catch(() => {}); updatePlayIcon();
+    video.src = finalUrl;
+    video.load();
+    video.play().catch(() => {});
+    updatePlayIcon();
   }
   video.onloadedmetadata = () => updateTimeline();
 }
@@ -589,16 +550,19 @@ async function playNextProgram() {
   if (!isArchive || !currentArchiveData || !currentChannelId) return;
   const stopDate = parseEPGDate(currentArchiveData.stop);
   const stopUnix = Math.floor(stopDate.getTime() / 1000);
-  const dayStr   = stopDate.getFullYear() + (stopDate.getMonth()+1).toString().padStart(2,'0') + stopDate.getDate().toString().padStart(2,'0');
-  let dayData    = window.epgCache?.[dayStr]?.[currentChannelId];
+  const dstr = stopDate.getFullYear()
+    + (stopDate.getMonth()+1).toString().padStart(2,'0')
+    + stopDate.getDate().toString().padStart(2,'0');
+
+  let dayData = window.epgCache?.[dstr]?.[currentChannelId];
   if (!dayData) {
     try {
-      const r = await fetch(`/epg-data?id=${encodeURIComponent(currentChannelId)}&full=true&date=${dayStr}`);
+      const r = await fetch(`/epg-data?id=${encodeURIComponent(currentChannelId)}&full=true&date=${dstr}`);
       dayData = await r.json();
       if (dayData?.length) {
         if (!window.epgCache) window.epgCache = {};
-        if (!window.epgCache[dayStr]) window.epgCache[dayStr] = {};
-        window.epgCache[dayStr][currentChannelId] = dayData;
+        if (!window.epgCache[dstr]) window.epgCache[dstr] = {};
+        window.epgCache[dstr][currentChannelId] = dayData;
       }
     } catch(e) {}
   }
@@ -609,17 +573,24 @@ async function playNextProgram() {
       if (!el) return;
       const nextStart = Math.floor(parseEPGDate(next.start).getTime()/1000);
       const nowUnix   = Math.floor(Date.now()/1000);
-      if (nextStart <= nowUnix && Math.floor(parseEPGDate(next.stop).getTime()/1000) > nowUnix) {
+      const nextStop  = Math.floor(parseEPGDate(next.stop).getTime()/1000);
+      if (nextStart <= nowUnix && nextStop > nowUnix) {
+        // Currently airing → go live
         isArchive = false; currentArchiveData = null;
-        playStream(el.dataset.url, el.querySelector('.ch-name')?.textContent.replace('★','').trim()||'',
-          el.querySelector('.ch-img')?.src||'', currentChannelId);
+        playStream(el.dataset.url,
+          el.querySelector('.ch-name')?.textContent.replace('★','').trim() || '',
+          el.querySelector('.ch-img')?.src || '',
+          currentChannelId);
         return;
       }
-      playStream(el.dataset.url, el.querySelector('.ch-name')?.textContent.replace('★','').trim()||'',
-        el.querySelector('.ch-img')?.src||'', currentChannelId, nextStart, next);
+      playStream(el.dataset.url,
+        el.querySelector('.ch-name')?.textContent.replace('★','').trim() || '',
+        el.querySelector('.ch-img')?.src || '',
+        currentChannelId, nextStart, next);
       return;
     }
   }
+  // Fallback: go live
   const el = document.querySelector('.ch-item.active');
   if (el) { isArchive = false; currentArchiveData = null; el.click(); }
 }
@@ -675,7 +646,6 @@ function closePanel() {
   panel.classList.add('panel-hidden');
   panelBD.classList.add('hidden');
 }
-
 panelSearch.oninput = () => {
   const q = panelSearch.value.toLowerCase();
   document.querySelectorAll('.ch-item').forEach(el => {
@@ -686,8 +656,7 @@ panelSearch.oninput = () => {
 // ── FAVORITES ────────────────────────────
 function toggleFav(id) {
   const idx = favorites.indexOf(id);
-  if (idx > -1) favorites.splice(idx, 1);
-  else favorites.push(id);
+  if (idx > -1) favorites.splice(idx, 1); else favorites.push(id);
   localStorage.setItem('favs', JSON.stringify(favorites));
   const sorted = [...channelsData].sort((a,b) =>
     (favorites.includes(b.id)?1:0) - (favorites.includes(a.id)?1:0));
@@ -698,9 +667,9 @@ function toggleFav(id) {
 // ── LOAD PLAYLIST ─────────────────────────
 async function loadPlaylist() {
   try {
-    const r    = await fetch('playlist.m3u');
+    const r = await fetch('playlist.m3u');
     const text = await r.text();
-    const lines= text.split('\n');
+    const lines = text.split('\n');
     channelsData = [];
     for (let i = 0; i < lines.length; i++) {
       if (!lines[i].startsWith('#EXTINF')) continue;
@@ -759,8 +728,8 @@ function renderChannels(channels) {
 
 // ── EPG SHEET ─────────────────────────────
 btnEPG.onclick = (e) => { e.stopPropagation(); openEPGSheet(); };
-document.getElementById('epg-close').onclick    = closeEPGSheet;
-document.getElementById('epg-backdrop').onclick  = closeEPGSheet;
+document.getElementById('epg-close').onclick   = closeEPGSheet;
+document.getElementById('epg-backdrop').onclick = closeEPGSheet;
 
 function openEPGSheet() {
   document.getElementById('epg-sheet').classList.remove('sheet-hidden');
@@ -772,7 +741,7 @@ function closeEPGSheet() {
   document.getElementById('epg-sheet').classList.add('sheet-hidden');
   document.getElementById('epg-backdrop').classList.add('hidden');
 }
-window.closeEPG = closeEPGSheet;
+window.closeEPG              = closeEPGSheet;
 window.getCurrentChannelId   = () => currentChannelId;
 window.getCurrentArchiveData = () => currentArchiveData;
 window.getIsArchive          = () => isArchive;
