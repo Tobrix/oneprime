@@ -1,5 +1,10 @@
 /* ═══════════════════════════════════════════
-   ONEPRIMETV — script.js (Fix v3)
+   ONEPRIMETV — script.js (Fix v4)
+   Key fixes:
+   - Live seek via video.currentTime (HLS buffer)
+   - Archive reload with full program stop time
+   - doSkip works in both live+archive
+   - No stream reload on small seeks
 ═══════════════════════════════════════════ */
 'use strict';
 
@@ -12,7 +17,7 @@ let currentArchiveData = null;
 let favorites = JSON.parse(localStorage.getItem('favs')) || [];
 let inactivityTimer = null;
 let controlsVisible = true;
-let channelsData = []; // store full channel list for re-render
+let channelsData = [];
 
 // ── DOM REFS ──────────────────────────────
 const video       = document.getElementById('video');
@@ -56,9 +61,16 @@ const centerIcon  = document.getElementById('center-icon');
 // ── HELPERS ──────────────────────────────
 function parseEPGDate(s) {
   if (!s) return null;
-  const t = s.split(' ')[0];
-  return new Date(+t.slice(0,4), +t.slice(4,6)-1, +t.slice(6,8),
-    +t.slice(8,10), +t.slice(10,12), +(t.slice(12,14)||0));
+  const parts = s.trim().split(' ');
+  const t  = parts[0];
+  const tz = parts[1] || '+0000';
+  const sign = tz[0] === '-' ? -1 : 1;
+  const tzH  = +(tz.slice(1,3)||0);
+  const tzM  = +(tz.slice(3,5)||0);
+  const tzOff= sign * (tzH * 60 + tzM) * 60000;
+  const utc  = Date.UTC(+t.slice(0,4), +t.slice(4,6)-1, +t.slice(6,8),
+                        +t.slice(8,10), +t.slice(10,12), +(t.slice(12,14)||0));
+  return new Date(utc - tzOff);
 }
 function fmtTime(d) {
   if (!d) return '--:--';
@@ -85,8 +97,6 @@ function resetInactivity() {
   clearTimeout(inactivityTimer);
   inactivityTimer = setTimeout(hideControls, 3500);
 }
-
-// Use pointermove for both mouse and touch
 app.addEventListener('pointermove', showControls, {passive: true});
 app.addEventListener('pointerdown', showControls, {passive: true});
 
@@ -97,7 +107,6 @@ controls.addEventListener('click', (e) => {
   video.paused ? video.play() : video.pause();
 }, true);
 
-// Touch zones double-tap
 let tapTimer = null, tapCount = 0;
 function handleTouchZone(side) {
   tapCount++;
@@ -136,11 +145,30 @@ function flashCenter(icon, stay = false) {
   if (!stay) setTimeout(() => indCenter.classList.remove('animating'), 600);
 }
 
-// ── SKIP ──────────────────────────────────
+// ── SKIP ─────────────────────────────────
+// For live: skip uses video.currentTime within HLS buffer
+// For archive: skip uses video.currentTime normally
 window.doSkip = function(s) {
-  try { video.currentTime += s; } catch(e) {}
-  if (s < 0) isUserBehind = true;
-  if (s > 0 && isFinite(video.duration) && video.duration - video.currentTime < 20) isUserBehind = false;
+  try {
+    if (!isArchive) {
+      // Live: check HLS buffer range
+      let seekable = 0;
+      if (video.seekable && video.seekable.length > 0) seekable = video.seekable.start(0);
+      const target = video.currentTime + s;
+      // If going back further than buffer allows, trigger archive seek
+      if (target < seekable - 1) {
+        seekBackToTime(target);
+        return;
+      }
+      video.currentTime = Math.max(seekable, target);
+      if (s < 0) isUserBehind = true;
+    } else {
+      video.currentTime = Math.max(0, video.currentTime + s);
+      if (s < 0) isUserBehind = true;
+    }
+    if (s > 0 && isFinite(video.duration) && video.duration - video.currentTime < 20) isUserBehind = false;
+  } catch(e) {}
+
   const el = s < 0 ? indLeft : indRight;
   if (el) {
     el.classList.remove('animating');
@@ -215,7 +243,11 @@ video.addEventListener('timeupdate', updateLiveStatus);
 
 // ── QUALITY ───────────────────────────────
 let userQuality = -1;
-qualBtn.onclick = (e) => { e.stopPropagation(); qualMenu.classList.toggle('hidden'); if (!qualMenu.classList.contains('hidden')) buildQualMenu(); };
+qualBtn.onclick = (e) => {
+  e.stopPropagation();
+  qualMenu.classList.toggle('hidden');
+  if (!qualMenu.classList.contains('hidden')) buildQualMenu();
+};
 document.addEventListener('click', (e) => { if (!e.target.closest('.qual-wrap')) qualMenu.classList.add('hidden'); });
 
 function buildQualMenu() {
@@ -246,7 +278,6 @@ function buildQualMenu() {
   });
   if (window.lucide) lucide.createIcons();
 }
-
 function updateQualBadge() {
   if (!hls || hls.currentLevel < 0 || !hls.levels[hls.currentLevel]) { qualBadge.classList.add('hidden'); return; }
   const h = hls.levels[hls.currentLevel].height;
@@ -321,8 +352,8 @@ function updateTimeline() {
   updateQualBadge();
 }
 setInterval(updateTimeline, 500);
-video.addEventListener('seeked', updateTimeline);
-video.addEventListener('timeupdate', updateTimeline);
+video.addEventListener('seeked',      updateTimeline);
+video.addEventListener('timeupdate',  updateTimeline);
 
 // Timeline hover
 timeline.addEventListener('mousemove', (e) => {
@@ -336,7 +367,9 @@ timeline.addEventListener('mousemove', (e) => {
 });
 timeline.addEventListener('mouseleave', () => { tlHover.style.display = 'none'; });
 
-// ── SEEK — with live support via shift/catchup ────────
+// ── SEEK ─────────────────────────────────
+// Live seek: try video.currentTime first (HLS DVR buffer),
+// only reload stream if target is outside buffer
 function handleSeek(e) {
   if (e.cancelable) e.preventDefault();
   e.stopPropagation();
@@ -345,69 +378,117 @@ function handleSeek(e) {
   const rect   = timeline.getBoundingClientRect();
   const clientX= e.touches ? e.touches[0].clientX : e.clientX;
   const pos    = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-  isUserBehind = pos < 0.96;
 
   if (isArchive) {
-    // Archive seek
-    if (isFinite(video.duration) && video.duration > 0)
+    if (isFinite(video.duration) && video.duration > 0) {
       video.currentTime = video.duration * pos;
+      isUserBehind = pos < 0.96;
+    }
   } else {
-    // LIVE seek: use shift/catchup — reload stream with utc params
-    const totalMs   = stop - start;
-    const targetTime= new Date(start.getTime() + totalMs * pos);
-    const nowMs     = Date.now();
-    const targetMs  = targetTime.getTime();
+    // Live seek
+    const totalMs    = stop - start;
+    const targetTime = new Date(start.getTime() + totalMs * pos);
+    const nowMs      = Date.now();
+    const targetMs   = targetTime.getTime();
 
-    // If seeking close to live edge (last 30s), just jump to live
+    isUserBehind = pos < 0.96;
+
+    // Near live edge (< 30s behind) — just jump to live edge
     if (nowMs - targetMs < 30000) {
       let livePoint = 0;
       if (video.seekable && video.seekable.length > 0) livePoint = video.seekable.end(0);
       else if (hls && hls.liveSyncPosition) livePoint = hls.liveSyncPosition;
       else livePoint = video.duration;
       if (isFinite(livePoint)) { video.currentTime = livePoint; isUserBehind = false; }
-      return;
+      showControls(); return;
     }
 
-    // Otherwise reload as archive (shift/catchup)
-    const ch = document.querySelector(`.ch-item[data-id="${currentChannelId}"]`);
-    if (!ch) return;
-    const startUnix = Math.floor(targetTime.getTime() / 1000);
-    const stopUnix  = Math.floor(stop.getTime() / 1000);
-    isArchive = true;
-    isUserBehind = true;
+    // Try HLS buffer seek first
+    if (video.seekable && video.seekable.length > 0) {
+      const bufferStart = video.seekable.start(0); // seconds from start of HLS
+      const bufferEnd   = video.seekable.end(0);
+      // Calculate target in video time
+      let livePoint = bufferEnd;
+      if (hls?.liveSyncPosition) livePoint = hls.liveSyncPosition;
+      const secondsBehindLive = (nowMs - targetMs) / 1000;
+      const targetVideoTime   = livePoint - secondsBehindLive;
 
-    // Build archive URL
-    let finalUrl = ch.dataset.url.replace('http://94.241.90.115:8889', '/oneplay');
-    finalUrl += `?utc=${startUnix}&lutc=${stopUnix}&_t=${Date.now()}`;
-
-    // Reload stream
-    const isApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    video.pause();
-    if (!isApple) { video.src = ''; video.load(); }
-    if (hls) { hls.destroy(); hls = null; }
-
-    currentArchiveData = {
-      title: ch.dataset.title || '',
-      start: formatUnixToEPG(startUnix),
-      stop:  formatUnixToEPG(stopUnix),
-      desc:  ch.dataset.desc  || '',
-      image: ch.dataset.img   || '',
-    };
-
-    if (Hls.isSupported() && !isApple) {
-      hls = new Hls({ liveSyncDurationCount: 0, enableWorker: true, startLevel: -1, manifestLoadingMaxRetry: 10 });
-      hls.loadSource(finalUrl);
-      hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); updatePlayIcon(); buildQualMenu(); });
-      hls.on(Hls.Events.FRAG_BUFFERED, () => loader.classList.add('hidden'));
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = finalUrl; video.load(); video.play().catch(() => {});
+      if (targetVideoTime >= bufferStart && targetVideoTime <= bufferEnd) {
+        // Within HLS buffer — just seek
+        video.currentTime = targetVideoTime;
+        showControls(); return;
+      }
     }
+
+    // Outside buffer — reload as archive/catchup
+    seekBackToTime(targetTime, start, stop);
   }
   showControls();
 }
 
-// Helper: unix timestamp → EPG string "YYYYMMDDHHmmss +0100"
+// Reload stream as archive from a target Date
+function seekBackToTime(targetTime, progStart, progStop) {
+  const ch = document.querySelector(`.ch-item[data-id="${currentChannelId}"]`);
+  if (!ch) return;
+
+  // Use program boundaries for lutc so stream doesn't expire early
+  const startUnix = Math.floor(targetTime.getTime() / 1000);
+  let stopUnix;
+  if (progStop) {
+    stopUnix = Math.floor(progStop.getTime() / 1000);
+  } else {
+    // Get current program stop time
+    const el = document.querySelector(`.ch-item[data-id="${currentChannelId}"]`);
+    const epgStop = el ? parseEPGDate(el.dataset.stop) : null;
+    stopUnix = epgStop ? Math.floor(epgStop.getTime() / 1000)
+                        : startUnix + 7200; // fallback 2h
+  }
+  // Always give at least 90 min of window
+  if (stopUnix - startUnix < 90 * 60) stopUnix = startUnix + 90 * 60;
+
+  isArchive = true;
+  isUserBehind = true;
+
+  // Temporarily store archive data for timeline display
+  currentArchiveData = {
+    title: ch.dataset.title || '',
+    start: formatUnixToEPG(startUnix),
+    stop:  formatUnixToEPG(stopUnix),
+    desc:  ch.dataset.desc  || '',
+    image: ch.dataset.img   || '',
+  };
+
+  let finalUrl = ch.dataset.url.replace('http://94.241.90.115:8889', '/oneplay');
+  finalUrl += `?utc=${startUnix}&lutc=${stopUnix}&_t=${Date.now()}`;
+
+  const isApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  video.pause();
+  if (!isApple) { video.src = ''; video.load(); }
+  if (hls) { hls.destroy(); hls = null; }
+
+  loader.classList.remove('hidden');
+
+  if (Hls.isSupported() && !isApple) {
+    hls = new Hls({
+      liveSyncDurationCount: 0,
+      enableWorker: true, startLevel: -1,
+      manifestLoadingMaxRetry: 10, levelLoadingMaxRetry: 10,
+      // KEY: Extend fragment retry to prevent 10-min stall
+      fragLoadingMaxRetry: 10,
+      fragLoadingRetryDelay: 1000,
+    });
+    hls.loadSource(finalUrl);
+    hls.attachMedia(video);
+    hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); updatePlayIcon(); buildQualMenu(); });
+    hls.on(Hls.Events.FRAG_BUFFERED,   () => loader.classList.add('hidden'));
+    hls.on(Hls.Events.ERROR, (ev, d)   => {
+      if (d.fatal) { console.warn('HLS fatal error', d.type); loader.classList.add('hidden'); }
+    });
+  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    video.src = finalUrl; video.load(); video.play().catch(() => {});
+  }
+}
+
 function formatUnixToEPG(unix) {
   const d = new Date(unix * 1000);
   return d.getFullYear()
@@ -421,20 +502,18 @@ function formatUnixToEPG(unix) {
 timeline.addEventListener('mousedown',  handleSeek);
 timeline.addEventListener('touchstart', handleSeek, { passive: false });
 
-// ── GO TO LIVE (badge click) ───────────────
+// ── GO TO LIVE (badge click) ──────────────
 liveBadge.addEventListener('click', (e) => {
   e.stopPropagation();
   if (isArchive) {
-    // Go back to live for this channel
     const ch = document.querySelector(`.ch-item[data-id="${currentChannelId}"]`);
     if (ch) {
       isArchive = false; currentArchiveData = null; isUserBehind = false;
-      playStream(ch.dataset.url, ch.querySelector('.ch-name')?.textContent || '',
+      playStream(ch.dataset.url, ch.querySelector('.ch-name')?.textContent.replace('★','').trim() || '',
         ch.querySelector('.ch-img')?.src || '', currentChannelId);
     }
     return;
   }
-  // Jump to live edge
   let livePoint = 0;
   if (video.seekable && video.seekable.length > 0) livePoint = video.seekable.end(0);
   else if (hls && hls.liveSyncPosition) livePoint = hls.liveSyncPosition;
@@ -451,12 +530,11 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
   localStorage.setItem('lastChannelId', channelId);
   loader.classList.remove('hidden');
 
-  chName.textContent   = name;
-  chProgram.textContent= isArchive ? (archiveData?.title || '') : '';
+  chName.textContent    = name;
+  chProgram.textContent = isArchive ? (archiveData?.title || '') : '';
   if (logo) { chLogo.src = logo; chLogo.classList.remove('hidden'); }
   else chLogo.classList.add('hidden');
 
-  // Highlight active in panel
   document.querySelectorAll('.ch-item').forEach(el => el.classList.toggle('active', el.dataset.id === channelId));
 
   const isApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -470,6 +548,8 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
       stopUnix = Math.floor((el ? parseEPGDate(el.dataset.stop) : new Date()).getTime() / 1000);
     }
     if (stopUnix <= startUnix) stopUnix = startUnix + 3600;
+    // Add buffer: extend stop by 15 min so stream doesn't expire mid-program
+    stopUnix += 15 * 60;
     finalUrl += `${finalUrl.includes('?') ? '&' : '?'}utc=${startUnix}&lutc=${stopUnix}&_t=${Date.now()}`;
   }
 
@@ -478,12 +558,18 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
   if (hls) { hls.destroy(); hls = null; }
 
   if (Hls.isSupported() && !isApple) {
-    hls = new Hls({ liveSyncDurationCount: isArchive ? 0 : 3, enableWorker: true, startLevel: -1, manifestLoadingMaxRetry: 15, levelLoadingMaxRetry: 15 });
+    hls = new Hls({
+      liveSyncDurationCount: isArchive ? 0 : 3,
+      enableWorker: true, startLevel: -1,
+      manifestLoadingMaxRetry: 15, levelLoadingMaxRetry: 15,
+      fragLoadingMaxRetry: 15,
+      fragLoadingRetryDelay: 1000,
+    });
     hls.loadSource(finalUrl);
     hls.attachMedia(video);
     hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); updatePlayIcon(); buildQualMenu(); });
-    hls.on(Hls.Events.FRAG_BUFFERED, () => loader.classList.add('hidden'));
-    hls.on(Hls.Events.ERROR, (ev, d) => { if (d.fatal) loader.classList.add('hidden'); });
+    hls.on(Hls.Events.FRAG_BUFFERED,   () => loader.classList.add('hidden'));
+    hls.on(Hls.Events.ERROR, (ev, d)   => { if (d.fatal) loader.classList.add('hidden'); });
   } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
     video.src = finalUrl; video.load(); video.play().catch(() => {}); updatePlayIcon();
   }
@@ -501,10 +587,10 @@ video.addEventListener('ended', () => {
 // ── NEXT PROGRAM ─────────────────────────
 async function playNextProgram() {
   if (!isArchive || !currentArchiveData || !currentChannelId) return;
-  const stopDate  = parseEPGDate(currentArchiveData.stop);
-  const stopUnix  = Math.floor(stopDate.getTime() / 1000);
-  const dayStr    = stopDate.getFullYear() + (stopDate.getMonth()+1).toString().padStart(2,'0') + stopDate.getDate().toString().padStart(2,'0');
-  let dayData     = window.epgCache?.[dayStr]?.[currentChannelId];
+  const stopDate = parseEPGDate(currentArchiveData.stop);
+  const stopUnix = Math.floor(stopDate.getTime() / 1000);
+  const dayStr   = stopDate.getFullYear() + (stopDate.getMonth()+1).toString().padStart(2,'0') + stopDate.getDate().toString().padStart(2,'0');
+  let dayData    = window.epgCache?.[dayStr]?.[currentChannelId];
   if (!dayData) {
     try {
       const r = await fetch(`/epg-data?id=${encodeURIComponent(currentChannelId)}&full=true&date=${dayStr}`);
@@ -524,12 +610,13 @@ async function playNextProgram() {
       const nextStart = Math.floor(parseEPGDate(next.start).getTime()/1000);
       const nowUnix   = Math.floor(Date.now()/1000);
       if (nextStart <= nowUnix && Math.floor(parseEPGDate(next.stop).getTime()/1000) > nowUnix) {
-        // Current live → go live
         isArchive = false; currentArchiveData = null;
-        playStream(el.dataset.url, el.querySelector('.ch-name')?.textContent||'', el.querySelector('.ch-img')?.src||'', currentChannelId);
+        playStream(el.dataset.url, el.querySelector('.ch-name')?.textContent.replace('★','').trim()||'',
+          el.querySelector('.ch-img')?.src||'', currentChannelId);
         return;
       }
-      playStream(el.dataset.url, el.querySelector('.ch-name')?.textContent||'', el.querySelector('.ch-img')?.src||'', currentChannelId, nextStart, next);
+      playStream(el.dataset.url, el.querySelector('.ch-name')?.textContent.replace('★','').trim()||'',
+        el.querySelector('.ch-img')?.src||'', currentChannelId, nextStart, next);
       return;
     }
   }
@@ -560,7 +647,7 @@ async function fetchEPG(id) {
 window.addEventListener('keydown', (e) => {
   if (document.activeElement.tagName === 'INPUT') return;
   switch(e.code) {
-    case 'Space':    e.preventDefault(); video.paused ? video.play() : video.pause(); break;
+    case 'Space':      e.preventDefault(); video.paused ? video.play() : video.pause(); break;
     case 'ArrowRight': e.preventDefault(); doSkip(10);  break;
     case 'ArrowLeft':  e.preventDefault(); doSkip(-10); break;
     case 'KeyF': e.preventDefault();
@@ -596,13 +683,12 @@ panelSearch.oninput = () => {
   });
 };
 
-// ── FAVORITES TOGGLE ──────────────────────
+// ── FAVORITES ────────────────────────────
 function toggleFav(id) {
   const idx = favorites.indexOf(id);
   if (idx > -1) favorites.splice(idx, 1);
   else favorites.push(id);
   localStorage.setItem('favs', JSON.stringify(favorites));
-  // Re-sort and re-render without full reload
   const sorted = [...channelsData].sort((a,b) =>
     (favorites.includes(b.id)?1:0) - (favorites.includes(a.id)?1:0));
   renderChannels(sorted);
@@ -655,7 +741,6 @@ function renderChannels(channels) {
         <div class="ch-epg">Načítám...</div>
         <div class="ch-bar"><div class="ch-bar-inner" style="width:0%"></div></div>
       </div>`;
-
     el.querySelector('.ch-fav').addEventListener('click', (e) => {
       e.stopPropagation(); toggleFav(ch.id);
     });
@@ -674,14 +759,12 @@ function renderChannels(channels) {
 
 // ── EPG SHEET ─────────────────────────────
 btnEPG.onclick = (e) => { e.stopPropagation(); openEPGSheet(); };
-document.getElementById('epg-close').onclick   = closeEPGSheet;
-document.getElementById('epg-backdrop').onclick = closeEPGSheet;
+document.getElementById('epg-close').onclick    = closeEPGSheet;
+document.getElementById('epg-backdrop').onclick  = closeEPGSheet;
 
 function openEPGSheet() {
-  const sheet = document.getElementById('epg-sheet');
-  const bd    = document.getElementById('epg-backdrop');
-  sheet.classList.remove('sheet-hidden');
-  bd.classList.remove('hidden');
+  document.getElementById('epg-sheet').classList.remove('sheet-hidden');
+  document.getElementById('epg-backdrop').classList.remove('hidden');
   showControls();
   if (typeof renderEPGGrid === 'function') renderEPGGrid();
 }
