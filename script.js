@@ -87,6 +87,9 @@ function getSeekableStart() {
 
 // ── CONTROLS VISIBILITY ───────────────────
 function showControls() {
+  // Don't touch controls when EPG sheet is open — prevents flicker
+  const epgSheetEl = document.getElementById('epg-sheet');
+  if (epgSheetEl && !epgSheetEl.classList.contains('sheet-hidden')) return;
   controls.classList.remove('controls-hidden');
   controlsVisible = true;
   resetInactivity();
@@ -103,8 +106,19 @@ function resetInactivity() {
   clearTimeout(inactivityTimer);
   inactivityTimer = setTimeout(hideControls, 3500);
 }
-app.addEventListener('pointermove', showControls, {passive: true});
-app.addEventListener('pointerdown', showControls, {passive: true});
+// Only show controls if pointer is NOT over EPG sheet or channels panel
+function handlePointerMove(e) {
+  const epgEl = document.getElementById('epg-sheet');
+  const panelEl = document.getElementById('channels-panel');
+  const bdEl = document.getElementById('epg-backdrop');
+  const pBdEl = document.getElementById('panel-backdrop');
+  if (e.target.closest('#epg-sheet') || e.target.closest('#channels-panel')) return;
+  if (e.target.closest('#epg-backdrop') || e.target.closest('#panel-backdrop')) return;
+  if (e.target.closest('#epg-modal-overlay') || e.target.closest('#epg-hover-popup')) return;
+  showControls();
+}
+app.addEventListener('pointermove', handlePointerMove, {passive: true});
+app.addEventListener('pointerdown', handlePointerMove, {passive: true});
 
 // ── VIDEO CLICK ───────────────────────────
 controls.addEventListener('click', (e) => {
@@ -635,15 +649,19 @@ panelBD.onclick     = closePanel;
 function openPanel() {
   panel.classList.remove('panel-hidden');
   panelBD.classList.remove('hidden');
+  // Stop inactivity timer while panel is open
+  clearTimeout(inactivityTimer);
+  controls.classList.remove('controls-hidden');
+  controlsVisible = true;
   setTimeout(() => {
     const active = channelsList.querySelector('.ch-item.active');
     if (active) active.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, 350);
-  showControls();
 }
 function closePanel() {
   panel.classList.add('panel-hidden');
   panelBD.classList.add('hidden');
+  resetInactivity();
 }
 panelSearch.oninput = () => {
   const q = panelSearch.value.toLowerCase();
@@ -657,9 +675,24 @@ function toggleFav(id) {
   const idx = favorites.indexOf(id);
   if (idx > -1) favorites.splice(idx, 1); else favorites.push(id);
   localStorage.setItem('favs', JSON.stringify(favorites));
+
+  // Re-sort channels: favorites first
   const sorted = [...channelsData].sort((a,b) =>
-    (favorites.includes(b.id)?1:0) - (favorites.includes(a.id)?1:0));
-  renderChannels(sorted);
+    (favorites.includes(b.id) ? 1 : 0) - (favorites.includes(a.id) ? 1 : 0));
+
+  // Re-render panel without reloading EPG data (preserve dataset)
+  const existingEpgData = {};
+  document.querySelectorAll('.ch-item[data-id]').forEach(el => {
+    existingEpgData[el.dataset.id] = {
+      start: el.dataset.start || '',
+      stop:  el.dataset.stop  || '',
+      title: el.dataset.title || '',
+      desc:  el.dataset.desc  || '',
+      img:   el.dataset.img   || '',
+    };
+  });
+
+  renderChannels(sorted, existingEpgData);
   if (window.lucide) lucide.createIcons();
 }
 
@@ -693,24 +726,35 @@ async function loadPlaylist() {
   } catch(e) { console.error('Playlist error', e); }
 }
 
-function renderChannels(channels) {
+function renderChannels(channels, existingEpgData = null) {
   channelsList.innerHTML = '';
   channels.forEach(ch => {
     const isFav = favorites.includes(ch.id);
+    const cached = existingEpgData?.[ch.id];
     const el = document.createElement('div');
     el.className = 'ch-item' + (ch.id === currentChannelId ? ' active' : '');
     el.dataset.id  = ch.id;
     el.dataset.url = ch.url;
+    // Restore cached EPG data if available
+    if (cached) {
+      el.dataset.start = cached.start;
+      el.dataset.stop  = cached.stop;
+      el.dataset.title = cached.title;
+      el.dataset.desc  = cached.desc;
+      el.dataset.img   = cached.img;
+    }
+    const epgText = cached?.title || 'Načítám...';
     el.innerHTML = `
       <i data-lucide="star" class="ch-fav${isFav ? ' starred' : ''}"></i>
       <img class="ch-img" src="${ch.logo}" onerror="this.src='https://via.placeholder.com/38?text=TV'" alt="">
       <div class="ch-info">
         <div class="ch-name">${ch.name}${isFav ? '<span class="fav-dot">★</span>' : ''}</div>
-        <div class="ch-epg">Načítám...</div>
+        <div class="ch-epg">${epgText}</div>
         <div class="ch-bar"><div class="ch-bar-inner" style="width:0%"></div></div>
       </div>`;
     el.querySelector('.ch-fav').addEventListener('click', (e) => {
-      e.stopPropagation(); toggleFav(ch.id);
+      e.stopPropagation();
+      toggleFav(ch.id);
     });
     el.onclick = (e) => {
       if (e.target.closest('.ch-fav')) return;
@@ -721,7 +765,8 @@ function renderChannels(channels) {
       closePanel();
     };
     channelsList.appendChild(el);
-    fetchEPG(ch.id);
+    // Only fetch EPG if we don't have cached data
+    if (!cached || !cached.title) fetchEPG(ch.id);
   });
 }
 
@@ -733,12 +778,18 @@ document.getElementById('epg-backdrop').onclick = closeEPGSheet;
 function openEPGSheet() {
   document.getElementById('epg-sheet').classList.remove('sheet-hidden');
   document.getElementById('epg-backdrop').classList.remove('hidden');
-  showControls();
+  // IMPORTANT: stop inactivity timer while EPG is open — prevents controls flicker
+  clearTimeout(inactivityTimer);
+  // Show controls once, then keep them visible
+  controls.classList.remove('controls-hidden');
+  controlsVisible = true;
   if (typeof renderEPGGrid === 'function') renderEPGGrid();
 }
 function closeEPGSheet() {
   document.getElementById('epg-sheet').classList.add('sheet-hidden');
   document.getElementById('epg-backdrop').classList.add('hidden');
+  // Resume inactivity timer
+  resetInactivity();
 }
 window.closeEPG              = closeEPGSheet;
 window.getCurrentChannelId   = () => currentChannelId;
