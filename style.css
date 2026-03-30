@@ -811,3 +811,130 @@ input{outline:none;border:none;color:inherit;font:inherit;background:none;}
   .epg-modal { border-radius: 16px 16px 0 0; max-width: 100%; }
   .epg-modal-img { height: 140px; }
 }
+
+/* ═══════════════════════════════════════════
+   FIX v3 PATCHES
+═══════════════════════════════════════════ */
+
+/* ── FIX 1: EPG sheet — never flickers in fullscreen
+   Use fixed positioning always, stop touching video layer */
+#epg-sheet {
+  position: fixed !important;
+  left: 0 !important; right: 0 !important; bottom: 0 !important;
+  z-index: 200 !important;  /* above everything */
+}
+#epg-backdrop {
+  z-index: 199 !important;
+}
+/* EPG modal above backdrop */
+.epg-modal-overlay { z-index: 300 !important; }
+
+/* ── FIX 2: Center indicator — exact center, no drift ── */
+#ind-center {
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  pointer-events: none !important;
+}
+/* Skip indicators also fixed */
+#ind-left  { left: 40px !important; top: 50% !important; transform: translateY(-50%) !important; }
+#ind-right { right: 40px !important; top: 50% !important; transform: translateY(-50%) !important; }
+
+/* ── FIX 3: Volume slider — bigger touch target ── */
+#vol-slider {
+  height: 6px !important;
+  cursor: pointer;
+}
+#vol-slider::-webkit-slider-thumb {
+  width: 18px !important;
+  height: 18px !important;
+  cursor: pointer;
+}
+#vol-slider::-moz-range-thumb {
+  width: 18px !important;
+  height: 18px !important;
+  background: #fff;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+}
+#vol-slider-wrap.open { width: 110px !important; padding: 0 10px !important; }
+
+/* ── FIX 4: Favorites star in sidebar ── */
+.ch-fav {
+  cursor: pointer;
+  width: 18px !important; height: 18px !important;
+  flex-shrink: 0;
+  color: var(--c-text3);
+  transition: all .2s;
+}
+.ch-fav:hover { color: var(--c-gold) !important; transform: scale(1.2); }
+.ch-fav.starred {
+  color: var(--c-gold) !important;
+  fill: var(--c-gold) !important;
+}
+.fav-dot {
+  color: var(--c-gold);
+  font-size: .65rem;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+/* ── FIX 5: EPG fav indicator ── */
+.epg-row-fav .epg-ch-label {
+  border-left: 2px solid rgba(251,191,36,.5);
+}
+.epg-fav-star {
+  color: var(--c-gold);
+  font-size: .8rem;
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+
+/* ── FIX 6: EPG hover popup — always on top ── */
+.epg-hover-popup {
+  z-index: 400 !important;
+}
+
+/* ── FIX 7: Controls don't flicker — EPG sheet is separate layer ── */
+#controls {
+  /* Make sure controls don't trigger re-paints from EPG */
+  will-change: opacity;
+  isolation: isolate;
+}
+
+/* ── FIX 8: Live badge clickable cursor ── */
+#live-badge {
+  cursor: pointer;
+  user-select: none;
+}
+#live-badge:hover {
+  background: rgba(255,255,255,.1) !important;
+  border-color: rgba(255,255,255,.2) !important;
+}
+
+/* ── FIX 9: EPG playing highlight more visible ── */
+.epg-prog.playing {
+  background: rgba(99,102,241,.25) !important;
+  border: 1.5px solid rgba(99,102,241,.6) !important;
+  box-shadow: 0 0 8px rgba(99,102,241,.3) !important;
+}
+.epg-prog.playing .epg-prog-title {
+  color: #fff !important;
+  font-weight: 700 !important;
+}
+
+/* ── FIX 10: EPG scroll area height ── */
+#epg-scroll {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+/* ── phone override for vol slider ── */
+@media (max-width: 767px) {
+  #vol-slider { height: 8px !important; }
+  #vol-slider::-webkit-slider-thumb { width: 22px !important; height: 22px !important; }
+  #vol-slider-wrap.open { width: 90px !important; }
+}
