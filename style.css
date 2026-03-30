@@ -104,11 +104,25 @@ input{outline:none;border:none;color:inherit;font:inherit;background:none;}
 }
 .tap-indicator:first-of-type{left:30px;}
 .tap-indicator:last-of-type,.tap-indicator.right{right:30px;}
-.tap-indicator.center{
-  left:50%;transform:translate(-50%,-50%);
-  padding:16px;border-radius:50%;width:62px;height:62px;
-  background:rgba(99,102,241,.18);
-  border-color:rgba(99,102,241,.4);
+
+.tap-indicator.center {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  
+  /* Změna: odeber padding a nech flexbox, aby se postaral o střed */
+  padding: 0; 
+  border-radius: 50%;
+  width: 62px;
+  height: 62px;
+  
+  /* Přidej tyto řádky pro perfektní vystředění ikony v kruhu */
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  
+  background: rgba(99,102,241,.18);
+  border-color: rgba(99,102,241,.4);
 }
 .tap-indicator.animating{opacity:1;}
 .tap-indicator svg{width:20px;height:20px;}
