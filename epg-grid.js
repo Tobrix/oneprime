@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════
-   ONEPRIMETV — epg-grid.js (Fix v3)
+   ONEPRIMETV — epg-grid.js (Fix v4)
 ═══════════════════════════════════════════ */
 'use strict';
 
@@ -7,31 +7,54 @@ const PX_PER_MIN = 6;
 const CH_W = 150;
 window.epgCache = {};
 
-// Track selected day — always reset to "current" day when opening
 let selectedDay = todayStr();
 let epgPopup    = null;
 
+// ── DATE HELPERS ──────────────────────────
 function todayStr() {
   const d = new Date();
   return d.getFullYear() + (d.getMonth()+1).toString().padStart(2,'0') + d.getDate().toString().padStart(2,'0');
 }
-function yesterdayStr() {
-  const d = new Date(); d.setDate(d.getDate()-1);
-  return d.getFullYear() + (d.getMonth()+1).toString().padStart(2,'0') + d.getDate().toString().padStart(2,'0');
-}
-function tomorrowStr() {
-  const d = new Date(); d.setDate(d.getDate()+1);
+function dayStr(offset) {
+  const d = new Date(); d.setDate(d.getDate() + offset);
   return d.getFullYear() + (d.getMonth()+1).toString().padStart(2,'0') + d.getDate().toString().padStart(2,'0');
 }
 
+// Parse EPG timestamp — handles "+0100" timezone offset
 function parseEPG(s) {
   if (!s) return null;
-  const t = s.split(' ')[0];
-  return new Date(+t.slice(0,4), +t.slice(4,6)-1, +t.slice(6,8), +t.slice(8,10), +t.slice(10,12), +(t.slice(12,14)||0));
+  // Format: "20260330143000 +0100"
+  const parts = s.trim().split(' ');
+  const t = parts[0];
+  const tz = parts[1] || '+0000'; // e.g. "+0100"
+
+  const year = +t.slice(0,4);
+  const mon  = +t.slice(4,6) - 1;
+  const day  = +t.slice(6,8);
+  const h    = +t.slice(8,10);
+  const m    = +t.slice(10,12);
+  const sec  = +(t.slice(12,14)||0);
+
+  // Parse timezone offset
+  const tzSign = tz[0] === '-' ? -1 : 1;
+  const tzH    = +(tz.slice(1,3)||0);
+  const tzM    = +(tz.slice(3,5)||0);
+  const tzOffsetMs = tzSign * (tzH * 60 + tzM) * 60000;
+
+  // Build UTC time then apply offset
+  const utc = Date.UTC(year, mon, day, h, m, sec) - tzOffsetMs;
+  return new Date(utc);
 }
+
 function fmt(d) {
   if (!d) return '--:--';
+  // Format in local time
   return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+}
+
+// Get local midnight for a day string YYYYMMDD
+function getDayMidnight(dstr) {
+  return new Date(+dstr.slice(0,4), +dstr.slice(4,6)-1, +dstr.slice(6,8), 0, 0, 0, 0);
 }
 
 // ── DAY TABS ──────────────────────────────
@@ -39,12 +62,11 @@ function buildDayTabs() {
   const c = document.getElementById('epg-days');
   if (!c) return;
   c.innerHTML = '';
-  const days = [
-    { label: 'Včera', str: yesterdayStr() },
-    { label: 'Dnes',  str: todayStr()     },
-    { label: 'Zítra', str: tomorrowStr()  },
-  ];
-  days.forEach(({ label, str }) => {
+  [
+    { label: 'Včera', str: dayStr(-1) },
+    { label: 'Dnes',  str: dayStr(0)  },
+    { label: 'Zítra', str: dayStr(1)  },
+  ].forEach(({ label, str }) => {
     const btn = document.createElement('button');
     btn.className = 'epg-day-btn' + (str === selectedDay ? ' active' : '');
     btn.textContent = label;
@@ -59,7 +81,7 @@ function buildDayTabs() {
 
 // ── MAIN ENTRY ────────────────────────────
 window.renderEPGGrid = function() {
-  // Auto-set selected day based on what's playing
+  // Auto-select day based on what's currently playing
   const inArchive   = window.getIsArchive?.();
   const archiveData = window.getCurrentArchiveData?.();
   if (inArchive && archiveData?.start) {
@@ -68,7 +90,7 @@ window.renderEPGGrid = function() {
       selectedDay = d.getFullYear() + (d.getMonth()+1).toString().padStart(2,'0') + d.getDate().toString().padStart(2,'0');
     }
   } else {
-    selectedDay = todayStr();
+    selectedDay = dayStr(0);
   }
   buildDayTabs();
   buildGrid();
@@ -81,16 +103,15 @@ function buildGrid() {
   const nowLine = document.getElementById('epg-now-line');
   if (!rows || !ruler) return;
 
-  // Clear
   Array.from(rows.children).forEach(c => { if (c.id !== 'epg-now-line') c.remove(); });
   ruler.innerHTML = '';
 
-  const totalMins  = 24 * 60;
-  const gridWidth  = CH_W + totalMins * PX_PER_MIN;
-  ruler.style.width = gridWidth + 'px';
-  rows.style.minWidth = gridWidth + 'px';
+  const totalMins = 24 * 60;
+  const gridW     = CH_W + totalMins * PX_PER_MIN;
+  ruler.style.width   = gridW + 'px';
+  rows.style.minWidth = gridW + 'px';
 
-  // Time ruler marks every 30 min
+  // Time ruler — every 30 min
   for (let h = 0; h < 24; h++) {
     for (let m = 0; m < 60; m += 30) {
       const mark = document.createElement('div');
@@ -101,18 +122,19 @@ function buildGrid() {
     }
   }
 
-  // Now line
-  const isToday = selectedDay === todayStr();
+  // Now line — only on today
+  const isToday = selectedDay === dayStr(0);
   nowLine.style.display = isToday ? 'block' : 'none';
   if (isToday) {
-    const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+    const midnight = getDayMidnight(selectedDay);
+    const nowMins  = (Date.now() - midnight.getTime()) / 60000;
     nowLine.style.left = CH_W + nowMins * PX_PER_MIN + 'px';
   }
 
-  // Render channel rows
+  // Rows
+  if (!epgCache[selectedDay]) epgCache[selectedDay] = {};
   const channels = Array.from(document.querySelectorAll('.ch-item'));
   if (!channels.length) return;
-  if (!epgCache[selectedDay]) epgCache[selectedDay] = {};
 
   channels.forEach(ch => {
     const id   = ch.dataset.id;
@@ -135,100 +157,115 @@ function buildGrid() {
 
     const track = document.createElement('div');
     track.className = 'epg-progs';
-    track.style.minWidth = totalMins * PX_PER_MIN + 'px';
+    track.style.position  = 'relative';
+    track.style.minWidth  = totalMins * PX_PER_MIN + 'px';
+    track.style.height    = '100%';
     row.appendChild(track);
     rows.appendChild(row);
 
     if (epgCache[selectedDay][id]) {
       renderProgs(track, epgCache[selectedDay][id], id, ch);
     } else {
-      fetch(`/epg-data?id=${encodeURIComponent(id)}&full=true&date=${selectedDay}`)
-        .then(r => r.json())
-        .then(data => {
-          // For "today" also include programs from "yesterday" that bleed into today (past midnight)
-          if (selectedDay === todayStr() && !epgCache[yesterdayStr()]?.[id]) {
-            return fetch(`/epg-data?id=${encodeURIComponent(id)}&full=true&date=${yesterdayStr()}`)
-              .then(r2 => r2.json())
-              .then(ydData => {
-                if (!epgCache[yesterdayStr()]) epgCache[yesterdayStr()] = {};
-                epgCache[yesterdayStr()][id] = ydData || [];
-                // Merge: yesterday programs that end today
-                const midnight = new Date(); midnight.setHours(0,0,0,0);
-                const bleeding = (ydData || []).filter(p => {
-                  const stop = parseEPG(p.stop);
-                  return stop && stop > midnight;
-                });
-                epgCache[selectedDay][id] = [...bleeding, ...(data || [])];
-                renderProgs(track, epgCache[selectedDay][id], id, ch);
-                highlightCurrentInEPG();
-              });
-          }
-          epgCache[selectedDay][id] = data || [];
+      // For "today" also load yesterday to get overnight programs
+      const fetchDay = () => fetch(`/epg-data?id=${encodeURIComponent(id)}&full=true&date=${selectedDay}`)
+        .then(r => r.json()).catch(() => []);
+
+      if (selectedDay === dayStr(0)) {
+        const ydStr = dayStr(-1);
+        const fetchYd = () => {
+          if (epgCache[ydStr]?.[id]) return Promise.resolve(epgCache[ydStr][id]);
+          return fetch(`/epg-data?id=${encodeURIComponent(id)}&full=true&date=${ydStr}`)
+            .then(r => r.json()).catch(() => []);
+        };
+        Promise.all([fetchYd(), fetchDay()]).then(([ydData, tdData]) => {
+          if (!epgCache[ydStr]) epgCache[ydStr] = {};
+          epgCache[ydStr][id] = ydData || [];
+
+          // Overnight programs: those from yesterday that end after local midnight
+          const midnight = getDayMidnight(selectedDay);
+          const overnight = (ydData || []).filter(p => {
+            const stop = parseEPG(p.stop);
+            return stop && stop > midnight;
+          });
+          epgCache[selectedDay][id] = [...overnight, ...(tdData || [])];
           renderProgs(track, epgCache[selectedDay][id], id, ch);
           highlightCurrentInEPG();
-        })
-        .catch(() => {});
+        });
+      } else {
+        fetchDay().then(data => {
+          epgCache[selectedDay][id] = data || [];
+          renderProgs(track, data || [], id, ch);
+          highlightCurrentInEPG();
+        });
+      }
     }
   });
 
-  // Scroll after short delay
-  setTimeout(() => scrollEPGToFocus(), 200);
+  // Scroll after data loads
+  setTimeout(scrollEPGToFocus, 300);
 }
 
-// ── SCROLL TO FOCUS ───────────────────────
+// ── SCROLL TO FOCUS — center on current time/program ──
 function scrollEPGToFocus() {
-  const scroll     = document.getElementById('epg-scroll');
+  const scroll  = document.getElementById('epg-scroll');
   if (!scroll) return;
-  const inArchive  = window.getIsArchive?.();
-  const archData   = window.getCurrentArchiveData?.();
-  const isToday    = selectedDay === todayStr();
+  const inArchive = window.getIsArchive?.();
+  const archData  = window.getCurrentArchiveData?.();
+  const midnight  = getDayMidnight(selectedDay);
+
+  let targetMins;
 
   if (inArchive && archData?.start) {
     const d = parseEPG(archData.start);
-    if (d) {
-      const mins = d.getHours() * 60 + d.getMinutes();
-      // Scroll so playing program is ~1/3 from left
-      scroll.scrollLeft = Math.max(0, CH_W + mins * PX_PER_MIN - scroll.clientWidth * 0.33);
-      return;
-    }
+    if (d) targetMins = (d.getTime() - midnight.getTime()) / 60000;
   }
-  if (isToday) {
-    const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
-    scroll.scrollLeft = Math.max(0, CH_W + nowMins * PX_PER_MIN - scroll.clientWidth * 0.33);
+
+  if (targetMins == null && selectedDay === dayStr(0)) {
+    targetMins = (Date.now() - midnight.getTime()) / 60000;
   }
+
+  if (targetMins == null) targetMins = 12 * 60; // noon fallback
+
+  // Center the target time in the viewport
+  const targetPx = CH_W + targetMins * PX_PER_MIN;
+  const centerOffset = scroll.clientWidth / 2;
+  scroll.scrollLeft = Math.max(0, targetPx - centerOffset);
 }
 
 // ── RENDER PROGRAMS ───────────────────────
 function renderProgs(track, programs, channelId, chEl) {
   if (!programs?.length) return;
-  const now        = new Date();
-  const currentId  = window.getCurrentChannelId?.();
-  const archData   = window.getCurrentArchiveData?.();
-  const inArchive  = window.getIsArchive?.();
+  const now       = new Date();
+  const currentId = window.getCurrentChannelId?.();
+  const archData  = window.getCurrentArchiveData?.();
+  const inArchive = window.getIsArchive?.();
+  const midnight  = getDayMidnight(selectedDay);
+  const dayEnd    = new Date(midnight.getTime() + 24*60*60*1000);
 
   programs.forEach(prog => {
     const start = parseEPG(prog.start);
     const stop  = parseEPG(prog.stop);
     if (!start || !stop || stop <= start) return;
+    // Skip programs completely outside this day
+    if (stop <= midnight || start >= dayEnd) return;
 
-    // Position within the 24h grid for selectedDay
-    const dayStart  = new Date(start);
-    dayStart.setFullYear(+selectedDay.slice(0,4), +selectedDay.slice(4,6)-1, +selectedDay.slice(6,8));
-    dayStart.setHours(0,0,0,0);
+    // Clamp to day bounds
+    const clampedStart = start < midnight ? midnight : start;
+    const clampedStop  = stop  > dayEnd   ? dayEnd  : stop;
 
-    const startMins = Math.max(0, (start - dayStart) / 60000);
-    const endMins   = Math.min(24*60, (stop - dayStart) / 60000);
+    const startMins = (clampedStart.getTime() - midnight.getTime()) / 60000;
+    const endMins   = (clampedStop.getTime()  - midnight.getTime()) / 60000;
     if (endMins <= 0 || startMins >= 24*60) return;
 
-    const left  = startMins * PX_PER_MIN;
-    const width = Math.max(2, (endMins - startMins) * PX_PER_MIN - 2);
+    const left  = Math.max(0, startMins) * PX_PER_MIN;
+    const width = Math.max(2, (endMins - Math.max(0, startMins)) * PX_PER_MIN - 2);
 
     const block = document.createElement('div');
     block.className = 'epg-prog';
     block.dataset.progStart = prog.start;
     block.dataset.channelId = channelId;
 
-    const isNowLive = now >= start && now < stop && selectedDay === todayStr();
+    const isNowLive = now >= start && now < stop && selectedDay === dayStr(0);
     const isPast    = now >= stop;
     if (isNowLive) block.classList.add('current');
     if (isPast)    block.classList.add('past');
@@ -236,7 +273,7 @@ function renderProgs(track, programs, channelId, chEl) {
     // Highlight currently playing
     if (inArchive && channelId === currentId && archData) {
       const aStart = parseEPG(archData.start);
-      if (aStart && Math.abs(start - aStart) < 60000) block.classList.add('playing');
+      if (aStart && Math.abs(start.getTime() - aStart.getTime()) < 60000) block.classList.add('playing');
     } else if (!inArchive && isNowLive && channelId === currentId) {
       block.classList.add('playing');
     }
@@ -249,7 +286,7 @@ function renderProgs(track, programs, channelId, chEl) {
     title.textContent = prog.title;
     block.appendChild(title);
 
-    // Desktop hover popup
+    // Desktop hover
     block.addEventListener('mouseenter', () => {
       if (window.matchMedia('(hover: none)').matches) return;
       showHoverPopup(prog, block);
@@ -282,9 +319,9 @@ function highlightCurrentInEPG() {
     const aStart = parseEPG(archData.start);
     document.querySelectorAll(`.epg-row[data-channel-id="${currentId}"] .epg-prog`).forEach(block => {
       const bs = parseEPG(block.dataset.progStart);
-      if (bs && aStart && Math.abs(bs - aStart) < 60000) block.classList.add('playing');
+      if (bs && aStart && Math.abs(bs.getTime() - aStart.getTime()) < 60000) block.classList.add('playing');
     });
-  } else if (!inArchive && selectedDay === todayStr()) {
+  } else if (!inArchive && selectedDay === dayStr(0)) {
     document.querySelectorAll(`.epg-row[data-channel-id="${currentId}"] .epg-prog.current`).forEach(b => b.classList.add('playing'));
   }
 }
@@ -296,7 +333,7 @@ function showHoverPopup(prog, blockEl) {
   popup.id = 'epg-hover-popup';
   popup.className = 'epg-hover-popup';
   const start = parseEPG(prog.start), stop = parseEPG(prog.stop);
-  const dur = start && stop ? Math.round((stop-start)/60000) + ' min' : '';
+  const dur = start && stop ? Math.round((stop - start) / 60000) + ' min' : '';
   popup.innerHTML = `
     <div class="epg-popup-time">${fmt(start)} – ${fmt(stop)}${dur ? ' · ' + dur : ''}</div>
     <div class="epg-popup-title">${prog.title || ''}</div>
@@ -325,7 +362,7 @@ function showProgModal(prog, channelId, chEl, start, stop, now) {
 
   const isPast    = now >= stop;
   const isNowLive = now >= start && now < stop;
-  const dur = start && stop ? Math.round((stop-start)/60000) : 0;
+  const dur = start && stop ? Math.round((stop - start) / 60000) : 0;
   const canPlay   = isPast || isNowLive;
   const playLabel = isNowLive ? '▶ Sledovat živě' : '▶ Přehrát ze záznamu';
 
@@ -363,28 +400,23 @@ function showProgModal(prog, channelId, chEl, start, stop, now) {
     overlay.querySelector('.epg-modal-play').onclick = () => {
       overlay.remove(); closeEPG();
       if (isNowLive) {
-        // Go live
-        if (chEl) { window.isArchive = false; window.currentArchiveData = null; chEl.click(); }
+        if (chEl) { chEl.click(); }
       } else {
-        // Archive
         if (chEl) {
           playStream(chEl.dataset.url,
             chEl.querySelector('.ch-name')?.textContent.replace('★','').trim() || '',
             chEl.querySelector('.ch-img')?.src || '',
-            channelId, Math.floor(start.getTime()/1000), prog);
+            channelId, Math.floor(start.getTime() / 1000), prog);
         }
       }
     };
   }
 }
 
-// ── CLOSE OVERRIDE ────────────────────────
-const _origClose = window.closeEPG;
+// ── CLOSE ─────────────────────────────────
 window.closeEPG = function() {
   hideHoverPopup();
   document.getElementById('epg-modal-overlay')?.remove();
-  const sheet = document.getElementById('epg-sheet');
-  const bd    = document.getElementById('epg-backdrop');
-  if (sheet) sheet.classList.add('sheet-hidden');
-  if (bd)    bd.classList.add('hidden');
+  document.getElementById('epg-sheet')?.classList.add('sheet-hidden');
+  document.getElementById('epg-backdrop')?.classList.add('hidden');
 };
