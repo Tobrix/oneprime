@@ -848,6 +848,12 @@ input{outline:none;border:none;color:inherit;font:inherit;background:none;}
   transform: translate(-50%, -50%) !important;
   pointer-events: none !important;
 }
+
+#ind-center svg {
+  /* Posune samotnou šipku o 2 pixely doprava, 
+     aby byla v optickém středu kruhu */
+  margin-left: 3px; 
+}
 /* Skip indicators also fixed */
 #ind-left  { left: 40px !important; top: 50% !important; transform: translateY(-50%) !important; }
 #ind-right { right: 40px !important; top: 50% !important; transform: translateY(-50%) !important; }
