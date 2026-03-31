@@ -104,12 +104,25 @@ input{outline:none;border:none;color:inherit;font:inherit;background:none;}
 }
 .tap-indicator:first-of-type{left:30px;}
 .tap-indicator:last-of-type,.tap-indicator.right{right:30px;}
-.tap-indicator.center{
-  left:50%;transform:translate(-50%,-50%);
-  top:48%;
-  padding:16px;border-radius:50%;width:62px;height:62px;
-  background:rgba(99,102,241,.18);
-  border-color:rgba(99,102,241,.4);
+
+.tap-indicator.center {
+  left: 50%;
+  top: 50% !important; /* Změna na 50% pro absolutní střed */
+  transform: translate(-50%, -50%);
+  
+  /* Důležité: Žádný padding, aby kruh nebyl deformovaný */
+  padding: 0 !important; 
+  border-radius: 50%;
+  width: 62px;
+  height: 62px;
+  
+  /* Vycentrování vnitřní ikony v kruhu */
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  
+  background: rgba(99,102,241,.18);
+  border-color: rgba(99,102,241,.4);
 }
 .tap-indicator.animating{opacity:1;}
 .tap-indicator svg{width:20px;height:20px;}
@@ -844,11 +857,11 @@ input{outline:none;border:none;color:inherit;font:inherit;background:none;}
 /* EPG modal above backdrop */
 .epg-modal-overlay { z-index: 300 !important; }
 
-/* ── FIX 2: Center indicator — exact center, no drift ── */
+/* ── FIX 2: Center indicator — exact center ── */
 #ind-center {
   position: absolute !important;
   left: 50% !important;
-  top: 48% !important; /* TADY to změň také na 48% nebo 45% */
+  top: 50% !important; /* Musí být 50%, pokud chceš přesný střed obrazovky */
   transform: translate(-50%, -50%) !important;
   pointer-events: none !important;
   display: flex !important;
@@ -856,8 +869,8 @@ input{outline:none;border:none;color:inherit;font:inherit;background:none;}
   justify-content: center !important;
 }
 /* Skip indicators also fixed */
-#ind-left  { left: 40px !important; top: 48% !important; transform: translateY(-50%) !important; }
-#ind-right { right: 40px !important; top: 48% !important; transform: translateY(-50%) !important; }
+#ind-left  { left: 40px !important; top: 50% !important; transform: translateY(-50%) !important; }
+#ind-right { right: 40px !important; top: 50% !important; transform: translateY(-50%) !important; }
 
 /* ── FIX 3: Volume slider — bigger touch target ── */
 #vol-slider {
