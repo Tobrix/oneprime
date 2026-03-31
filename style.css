@@ -713,7 +713,7 @@ input{outline:none;border:none;color:inherit;font:inherit;background:none;}
 /* ── PROGRAM MODAL ───────────────────────── */
 .epg-modal-overlay {
   position: fixed; inset: 0; z-index: 10000;
-  /* Semi-transparent dark blue overlay — lets EPG grid show through */
+  /* Průhledné tmavě modré pozadí — vidíš EPG skrz, ale rozostřené */
   background: rgba(4, 6, 20, 0.45);
   backdrop-filter: blur(14px) saturate(140%) brightness(0.7);
   -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(0.7);
@@ -722,9 +722,9 @@ input{outline:none;border:none;color:inherit;font:inherit;background:none;}
   animation: fade-in .22s ease;
 }
 .epg-modal {
-  /* Frosted glass card — semi-transparent with strong blur */
-  background: rgba(12, 14, 32, 0.82);
-  border: 1px solid rgba(99,102,241,0.22);
+  /* Frosted glass karta */
+  background: rgba(12, 14, 32, 0.88);
+  border: 1px solid rgba(99,102,241,0.25);
   border-radius: 18px;
   max-width: 480px;
   width: 100%;
@@ -818,7 +818,6 @@ input{outline:none;border:none;color:inherit;font:inherit;background:none;}
   .epg-modal-overlay {
     align-items: flex-end;
     padding: 0;
-    /* On mobile: bottom half visible, top half blurred */
     background: rgba(4, 6, 20, 0.35);
     backdrop-filter: blur(12px) brightness(0.65);
     -webkit-backdrop-filter: blur(12px) brightness(0.65);
@@ -826,14 +825,13 @@ input{outline:none;border:none;color:inherit;font:inherit;background:none;}
   .epg-modal {
     border-radius: 20px 20px 0 0;
     max-width: 100%;
-    /* Slide up animation on mobile */
     animation: modal-slide-up .28s cubic-bezier(.4,0,.2,1);
   }
   .epg-modal-img { height: 140px; }
-  @keyframes modal-slide-up {
-    from { opacity:0; transform: translateY(40px); }
-    to   { opacity:1; transform: translateY(0); }
-  }
+}
+@keyframes modal-slide-up {
+  from { opacity:0; transform: translateY(40px); }
+  to   { opacity:1; transform: translateY(0); }
 }
 
 /* ═══════════════════════════════════════════
