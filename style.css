@@ -855,13 +855,13 @@ input{outline:none;border:none;color:inherit;font:inherit;background:none;}
 #ind-center {
   position: absolute !important;
   left: 50% !important;
-  top: 50% !important;
+  top: 49% !important;
   transform: translate(-50%, -50%) !important;
   pointer-events: none !important;
 }
 /* Skip indicators also fixed */
-#ind-left  { left: 40px !important; top: 50% !important; transform: translateY(-50%) !important; }
-#ind-right { right: 40px !important; top: 50% !important; transform: translateY(-50%) !important; }
+#ind-left  { left: 40px !important; top: 49% !important; transform: translateY(-50%) !important; }
+#ind-right { right: 40px !important; top: 49% !important; transform: translateY(-50%) !important; }
 
 /* ── FIX 3: Volume slider — bigger touch target ── */
 #vol-slider {
