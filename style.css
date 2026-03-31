@@ -106,6 +106,7 @@ input{outline:none;border:none;color:inherit;font:inherit;background:none;}
 .tap-indicator:last-of-type,.tap-indicator.right{right:30px;}
 .tap-indicator.center{
   left:50%;transform:translate(-50%,-50%);
+  top:48%;
   padding:16px;border-radius:50%;width:62px;height:62px;
   background:rgba(99,102,241,.18);
   border-color:rgba(99,102,241,.4);
@@ -855,13 +856,13 @@ input{outline:none;border:none;color:inherit;font:inherit;background:none;}
 #ind-center {
   position: absolute !important;
   left: 50% !important;
-  top: 49% !important;
+  top: 48% !important;
   transform: translate(-50%, -50%) !important;
   pointer-events: none !important;
 }
 /* Skip indicators also fixed */
-#ind-left  { left: 40px !important; top: 49% !important; transform: translateY(-50%) !important; }
-#ind-right { right: 40px !important; top: 49% !important; transform: translateY(-50%) !important; }
+#ind-left  { left: 40px !important; top: 48% !important; transform: translateY(-50%) !important; }
+#ind-right { right: 40px !important; top: 48% !important; transform: translateY(-50%) !important; }
 
 /* ── FIX 3: Volume slider — bigger touch target ── */
 #vol-slider {
