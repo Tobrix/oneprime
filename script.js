@@ -460,50 +460,29 @@ function seekLiveToWallTime(targetWallTime, progStart, progStop) {
 
 function handleSeek(e) {
   if (e.cancelable) e.preventDefault();
-  e.stopPropagation();
-  const times = getChannelTimes(); if (!times) return;
-  const { start, stop } = times;
-  const rect   = timeline.getBoundingClientRect();
-  const clientX= e.touches ? e.touches[0].clientX : e.clientX;
-  const pos    = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  const times = getChannelTimes(); 
+  if (!times) return;
+
+  const rect = timeline.getBoundingClientRect();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const pos = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
 
   if (isArchive) {
-    // Archive: seek within clip duration
-    if (isFinite(video.duration) && video.duration > 0) {
-      video.currentTime = video.duration * pos;
-      isUserBehind = pos < 0.96;
-    }
+    if (isFinite(video.duration)) video.currentTime = video.duration * pos;
   } else {
-    // LIVE seek — calculate wall-clock target from timeline position
-    const totalMs      = stop - start;
-    const targetWallMs = start.getTime() + totalMs * pos;
-    const nowMs        = Date.now();
-    const behindSec    = (nowMs - targetWallMs) / 1000;
+    // LIVE SEEK
+    const totalMs = times.stop - times.start;
+    const targetWallMs = times.start.getTime() + (totalMs * pos);
+    const nowMs = Date.now();
+    const behindSec = (nowMs - targetWallMs) / 1000;
 
-    if (behindSec <= 5) {
-      // Near live edge — just snap to edge
-      const liveEdge = getLiveEdge();
-      if (isFinite(liveEdge)) { video.currentTime = liveEdge; isUserBehind = false; }
+    // Pokud kliknu blíž než 20s k aktuálnímu času, zkusím Live hranu
+    if (behindSec < 20) {
+      video.currentTime = getLiveEdge();
+      isUserBehind = false;
     } else {
-      // Try DVR buffer first (fast, no reload)
-      const liveEdge = getLiveEdge();
-      const bufStart = getSeekableStart();
-      if (isFinite(liveEdge) && liveEdge > 0) {
-        const targetVideoTime = liveEdge - behindSec;
-        if (targetVideoTime >= bufStart) {
-          // Within buffer — just seek
-          video.currentTime = targetVideoTime;
-          isUserBehind = true;
-        } else {
-          // Beyond buffer — reload with catchup URL
-          seekLiveToWallTime(new Date(targetWallMs), start, stop);
-          showControls(); return;
-        }
-      } else {
-        // No buffer info yet — use catchup
-        seekLiveToWallTime(new Date(targetWallMs), start, stop);
-        showControls(); return;
-      }
+      // Všechno ostatní přepínáme na "Live Archiv"
+      seekLiveToWallTime(new Date(targetWallMs), times.start, times.stop);
     }
   }
   showControls();
