@@ -165,39 +165,35 @@ function flashCenter(icon, stay = false) {
 window.doSkip = function(s) {
   try {
     const target = video.currentTime + s;
+    const liveEdge = getLiveEdge();
+    const bufStart = getSeekableStart();
+
     if (!isArchive) {
-      // Live skip
-      const liveEdge = getLiveEdge();
-      const bufStart = getSeekableStart();
-      if (isFinite(liveEdge) && liveEdge > 0) {
-        if (s > 0 && target >= liveEdge - 5) {
-          // Forward → snap to live edge
-          video.currentTime = liveEdge;
-          isUserBehind = false;
-        } else if (target >= bufStart) {
-          // Within DVR buffer — just seek
-          video.currentTime = target;
-          isUserBehind = true;
-        } else {
-          // Beyond DVR buffer — use catchup URL
-          const times = getChannelTimes();
-          if (times) {
-            // Calculate wall-clock target time
-            const behindFromLive = liveEdge - target; // seconds
-            const targetWallMs = Date.now() - behindFromLive * 1000;
-            seekLiveToWallTime(new Date(targetWallMs), times.start, times.stop);
-            isUserBehind = true;
-          }
-          // Skip indicator then return (seekLiveToWallTime handles stream)
+      // Jsme v LIVE režimu
+      if (s > 0 && target >= liveEdge - 5) {
+        // Skok vpřed na LIVE hranu
+        video.currentTime = liveEdge;
+        isUserBehind = false;
+      } else if (target >= bufStart && target <= liveEdge) {
+        // Skok je v rámci malého bufferu (pár sekund zpět)
+        video.currentTime = target;
+        isUserBehind = true;
+      } else {
+        // Skok je MIMO buffer (chceme jít dál do historie)
+        const times = getChannelTimes();
+        if (times) {
+          const behindFromLive = liveEdge - target; 
+          const targetWallMs = Date.now() - (behindFromLive * 1000);
+          seekLiveToWallTime(new Date(targetWallMs), times.start, times.stop);
         }
       }
     } else {
-      // Archive seek within clip
-      video.currentTime = Math.max(0, Math.min(isFinite(video.duration) ? video.duration : target, target));
-      isUserBehind = true;
+      // Jsme v ARCHIVU - standardní posun
+      video.currentTime = Math.max(0, Math.min(video.duration, target));
     }
-  } catch(e) {}
+  } catch(e) { console.error("Skip error:", e); }
 
+  // Animace ikonky
   const el = s < 0 ? indLeft : indRight;
   if (el) {
     el.classList.remove('animating');
