@@ -184,7 +184,20 @@ window.doSkip = function(s) {
 
     // 2. Pokud už jsme v ARCHIVU (nebo skáčeme v rámci bufferu)
     if (isArchive) {
-        video.currentTime = Math.max(0, Math.min(video.duration, target));
+        if (currentArchiveData && currentArchiveData._streamStartMs) {
+          // Seeked-live archive: skip by wall-clock recalculation
+          const times = getChannelTimes();
+          if (times) {
+            const currentWallMs = currentArchiveData._streamStartMs + video.currentTime * 1000;
+            const newWallMs     = currentWallMs + s * 1000;
+            const clampedMs     = Math.max(times.start.getTime(), Math.min(Date.now() - 5000, newWallMs));
+            seekLiveToWallTime(new Date(clampedMs), times.start, times.stop);
+            return;
+          }
+        } else {
+          // Normal archive (from EPG)
+          video.currentTime = Math.max(0, Math.min(video.duration, target));
+        }
     } else {
         // Skok v rámci LIVE bufferu (těch pár vteřin co prohlížeč drží)
         if (target >= bufStart && target <= liveEdge) {
@@ -325,6 +338,13 @@ video.addEventListener('loadstart', () => loader.classList.remove('hidden'));
 // ── TIMELINE ─────────────────────────────
 function getChannelTimes() {
   if (isArchive && currentArchiveData) {
+    // Use raw ms timestamps if available (set by seekLiveToWallTime)
+    if (currentArchiveData._progStartMs && currentArchiveData._progStopMs) {
+      return {
+        start: new Date(currentArchiveData._progStartMs),
+        stop:  new Date(currentArchiveData._progStopMs),
+      };
+    }
     const s = parseEPGDate(currentArchiveData.start);
     const e = parseEPGDate(currentArchiveData.stop);
     if (s && e) return { start: s, stop: e };
@@ -361,18 +381,24 @@ function updateTimeline() {
     if (times) {
       const { start, stop } = times;
       const totalMs = stop - start;
-      
-      // Vypočítáme aktuální reálný čas (Wall Clock) v archivu
-      // currentArchiveData.start je čas, kdy začal tento konkrétní stream
-      const streamStartMs = parseEPGDate(currentArchiveData.start).getTime();
+
+      // Use _streamStartMs if available (set by seekLiveToWallTime — exact wall-clock)
+      let streamStartMs;
+      if (currentArchiveData && currentArchiveData._streamStartMs) {
+        streamStartMs = currentArchiveData._streamStartMs;
+      } else if (currentArchiveData && currentArchiveData.start) {
+        streamStartMs = parseEPGDate(currentArchiveData.start).getTime();
+      } else {
+        streamStartMs = start.getTime();
+      }
+
+      // Current wall-clock position in the program
       const currentWallTimeMs = streamStartMs + (video.currentTime * 1000);
-      
-      // Procentuální pozice v rámci CELÉHO pořadu (od začátku do konce na ose)
       const pct = Math.max(0, Math.min(100, (currentWallTimeMs - start.getTime()) / totalMs * 100));
 
-      tlPos.style.width = pct + '%';
+      tlPos.style.width  = pct + '%';
       if (tlThumb) tlThumb.style.left = pct + '%';
-      tlLive.style.width = '100%'; // V archivu je "budoucnost" vždy plná
+      tlLive.style.width = '100%';
     }
   } else {
     // Live: show position relative to program time window
@@ -423,28 +449,22 @@ function seekLiveToWallTime(targetWallTime, progStart, progStop) {
   if (!ch) return;
 
   const startUnix = Math.floor(targetWallTime.getTime() / 1000);
-  // Use program stop + buffer so stream doesn't expire mid-seek
-  const stopUnix = Math.floor(progStop.getTime() / 1000) + 120;
+  const stopUnix  = Math.floor(progStop.getTime() / 1000) + 30 * 60; // +30min buffer
 
-  // Switch to archive mode but keep the original program times for timeline
+  // Switch to archive mode — store raw ms so timeline stays correct
   isArchive = true;
   isUserBehind = true;
   currentArchiveData = {
-    title: ch.dataset.title || '',
-    start: progStart.getFullYear()
-      + (progStart.getMonth()+1).toString().padStart(2,'0')
-      + progStart.getDate().toString().padStart(2,'0')
-      + progStart.getHours().toString().padStart(2,'0')
-      + progStart.getMinutes().toString().padStart(2,'0')
-      + '00 +0000',
-    stop: progStop.getFullYear()
-      + (progStop.getMonth()+1).toString().padStart(2,'0')
-      + progStop.getDate().toString().padStart(2,'0')
-      + progStop.getHours().toString().padStart(2,'0')
-      + progStop.getMinutes().toString().padStart(2,'0')
-      + '00 +0000',
-    desc:  ch.dataset.desc || '',
-    image: ch.dataset.img  || '',
+    title:    ch.dataset.title || '',
+    desc:     ch.dataset.desc  || '',
+    image:    ch.dataset.img   || '',
+    // Store raw EPG strings from dataset (already correct with timezone)
+    start:    ch.dataset.start || '',
+    stop:     ch.dataset.stop  || '',
+    // KEY: also store exact stream start wall-clock time for timeline
+    _streamStartMs: targetWallTime.getTime(),
+    _progStartMs:   progStart.getTime(),
+    _progStopMs:    progStop.getTime(),
   };
 
   const isApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -486,7 +506,19 @@ function handleSeek(e) {
   const pos = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
 
   if (isArchive) {
-    if (isFinite(video.duration)) video.currentTime = video.duration * pos;
+    if (currentArchiveData && currentArchiveData._streamStartMs) {
+      // Seeked-live archive mode: re-seek by wall-clock position in program
+      const times2 = getChannelTimes();
+      if (times2) {
+        const totalProgMs   = times2.stop.getTime() - times2.start.getTime();
+        const targetWallMs2 = times2.start.getTime() + totalProgMs * pos;
+        seekLiveToWallTime(new Date(targetWallMs2), times2.start, times2.stop);
+        showControls(); return;
+      }
+    } else if (isFinite(video.duration) && video.duration > 0) {
+      // Normal archive (from EPG): seek by video.duration ratio
+      video.currentTime = video.duration * pos;
+    }
   } else {
     // LIVE SEEK
     const totalMs = times.stop - times.start;
