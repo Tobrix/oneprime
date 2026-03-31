@@ -406,7 +406,7 @@ function seekLiveToWallTime(targetWallTime, progStart, progStop) {
 
   const startUnix = Math.floor(targetWallTime.getTime() / 1000);
   // Use program stop + buffer so stream doesn't expire mid-seek
-  const stopUnix  = Math.floor(progStop.getTime() / 1000) + 30 * 60;
+  const stopUnix = Math.floor(progStop.getTime() / 1000) + 120;
 
   // Switch to archive mode but keep the original program times for timeline
   isArchive = true;
