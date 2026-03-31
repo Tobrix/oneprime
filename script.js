@@ -168,36 +168,30 @@ window.doSkip = function(s) {
     const bufStart = getSeekableStart();
     const target = video.currentTime + s;
 
-    // 1. Pokud jsme v LIVE a chceme jít zpět pod hranici bufferu (obvykle 30s)
-    if (!isArchive && s < 0 && target < (bufStart + 5)) {
+    // 1. Live shift mode: video.currentTime = seconds from prog start → just seek
+    if (!isArchive && currentArchiveData?._isLiveShift) {
+      const times = getChannelTimes();
+      if (times) {
+        const totalSec = (times.stop.getTime() - times.start.getTime()) / 1000;
+        const newTime  = Math.max(0, Math.min(video.currentTime + s, totalSec));
+        video.currentTime = newTime;
+        isUserBehind = (liveEdge - newTime) > 10;
+      }
+      // Fall through to indicator animation
+    } else if (!isArchive && s < 0 && target < (bufStart + 5)) {
+        // Normal live: beyond buffer → load as seeked archive
         const times = getChannelTimes();
         if (times) {
-            // Vypočítáme přesný čas (Wall Clock), kde jsme byli minus 10s
             const behindFromLive = liveEdge - target;
             const targetWallMs = Date.now() - (behindFromLive * 1000);
-            
-            console.log("⚠️ Opouštím LIVE buffer, přecházím do ARCHIVU");
             seekLiveToWallTime(new Date(targetWallMs), times.start, times.stop);
-            return; // Důležité: seekLiveToWallTime už vyřeší zbytek
+            return;
         }
     }
 
     // 2. Pokud už jsme v ARCHIVU (nebo skáčeme v rámci bufferu)
     if (isArchive) {
-        if (currentArchiveData && currentArchiveData._streamStartMs) {
-          // Seeked-live archive: skip by wall-clock recalculation
-          const times = getChannelTimes();
-          if (times) {
-            const currentWallMs = currentArchiveData._streamStartMs + video.currentTime * 1000;
-            const newWallMs     = currentWallMs + s * 1000;
-            const clampedMs     = Math.max(times.start.getTime(), Math.min(Date.now() - 5000, newWallMs));
-            seekLiveToWallTime(new Date(clampedMs), times.start, times.stop);
-            return;
-          }
-        } else {
-          // Normal archive (from EPG)
-          video.currentTime = Math.max(0, Math.min(video.duration, target));
-        }
+        video.currentTime = Math.max(0, Math.min(video.duration, target));
     } else {
         // Skok v rámci LIVE bufferu (těch pár vteřin co prohlížeč drží)
         if (target >= bufStart && target <= liveEdge) {
@@ -337,8 +331,15 @@ video.addEventListener('loadstart', () => loader.classList.remove('hidden'));
 
 // ── TIMELINE ─────────────────────────────
 function getChannelTimes() {
+  // Live shift mode (live loaded from program start)
+  if (!isArchive && currentArchiveData?._isLiveShift) {
+    return {
+      start: new Date(currentArchiveData._progStartMs),
+      stop:  new Date(currentArchiveData._progStopMs),
+    };
+  }
+  // Archive / seek modes
   if (isArchive && currentArchiveData) {
-    // Use raw ms timestamps if available (set by seekLiveToWallTime)
     if (currentArchiveData._progStartMs && currentArchiveData._progStopMs) {
       return {
         start: new Date(currentArchiveData._progStartMs),
@@ -381,24 +382,18 @@ function updateTimeline() {
     if (times) {
       const { start, stop } = times;
       const totalMs = stop - start;
-
-      // Use _streamStartMs if available (set by seekLiveToWallTime — exact wall-clock)
-      let streamStartMs;
-      if (currentArchiveData && currentArchiveData._streamStartMs) {
-        streamStartMs = currentArchiveData._streamStartMs;
-      } else if (currentArchiveData && currentArchiveData.start) {
-        streamStartMs = parseEPGDate(currentArchiveData.start).getTime();
-      } else {
-        streamStartMs = start.getTime();
-      }
-
-      // Current wall-clock position in the program
+      
+      // Vypočítáme aktuální reálný čas (Wall Clock) v archivu
+      // currentArchiveData.start je čas, kdy začal tento konkrétní stream
+      const streamStartMs = parseEPGDate(currentArchiveData.start).getTime();
       const currentWallTimeMs = streamStartMs + (video.currentTime * 1000);
+      
+      // Procentuální pozice v rámci CELÉHO pořadu (od začátku do konce na ose)
       const pct = Math.max(0, Math.min(100, (currentWallTimeMs - start.getTime()) / totalMs * 100));
 
-      tlPos.style.width  = pct + '%';
+      tlPos.style.width = pct + '%';
       if (tlThumb) tlThumb.style.left = pct + '%';
-      tlLive.style.width = '100%';
+      tlLive.style.width = '100%'; // V archivu je "budoucnost" vždy plná
     }
   } else {
     // Live: show position relative to program time window
@@ -407,7 +402,11 @@ function updateTimeline() {
 
     const liveEdge = getLiveEdge();
     let posPct;
-    if (isFinite(liveEdge) && liveEdge > 0) {
+    if (currentArchiveData?._isLiveShift && isFinite(liveEdge) && liveEdge > 0) {
+      // Live shift: video.currentTime is seconds from program start (utc param)
+      const currentWallMs = start.getTime() + video.currentTime * 1000;
+      posPct = Math.max(0, Math.min(liveEdgePct, (currentWallMs - start.getTime()) / totalMs * 100));
+    } else if (isFinite(liveEdge) && liveEdge > 0) {
       const behindSec = liveEdge - video.currentTime;
       const posMs     = (now - start) - behindSec * 1000;
       posPct = Math.max(0, Math.min(liveEdgePct, posMs / totalMs * 100));
@@ -449,22 +448,28 @@ function seekLiveToWallTime(targetWallTime, progStart, progStop) {
   if (!ch) return;
 
   const startUnix = Math.floor(targetWallTime.getTime() / 1000);
-  const stopUnix  = Math.floor(progStop.getTime() / 1000) + 30 * 60; // +30min buffer
+  // Use program stop + buffer so stream doesn't expire mid-seek
+  const stopUnix = Math.floor(progStop.getTime() / 1000) + 120;
 
-  // Switch to archive mode — store raw ms so timeline stays correct
+  // Switch to archive mode but keep the original program times for timeline
   isArchive = true;
   isUserBehind = true;
   currentArchiveData = {
-    title:    ch.dataset.title || '',
-    desc:     ch.dataset.desc  || '',
-    image:    ch.dataset.img   || '',
-    // Store raw EPG strings from dataset (already correct with timezone)
-    start:    ch.dataset.start || '',
-    stop:     ch.dataset.stop  || '',
-    // KEY: also store exact stream start wall-clock time for timeline
-    _streamStartMs: targetWallTime.getTime(),
-    _progStartMs:   progStart.getTime(),
-    _progStopMs:    progStop.getTime(),
+    title: ch.dataset.title || '',
+    start: progStart.getFullYear()
+      + (progStart.getMonth()+1).toString().padStart(2,'0')
+      + progStart.getDate().toString().padStart(2,'0')
+      + progStart.getHours().toString().padStart(2,'0')
+      + progStart.getMinutes().toString().padStart(2,'0')
+      + '00 +0000',
+    stop: progStop.getFullYear()
+      + (progStop.getMonth()+1).toString().padStart(2,'0')
+      + progStop.getDate().toString().padStart(2,'0')
+      + progStop.getHours().toString().padStart(2,'0')
+      + progStop.getMinutes().toString().padStart(2,'0')
+      + '00 +0000',
+    desc:  ch.dataset.desc || '',
+    image: ch.dataset.img  || '',
   };
 
   const isApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -506,19 +511,7 @@ function handleSeek(e) {
   const pos = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
 
   if (isArchive) {
-    if (currentArchiveData && currentArchiveData._streamStartMs) {
-      // Seeked-live archive mode: re-seek by wall-clock position in program
-      const times2 = getChannelTimes();
-      if (times2) {
-        const totalProgMs   = times2.stop.getTime() - times2.start.getTime();
-        const targetWallMs2 = times2.start.getTime() + totalProgMs * pos;
-        seekLiveToWallTime(new Date(targetWallMs2), times2.start, times2.stop);
-        showControls(); return;
-      }
-    } else if (isFinite(video.duration) && video.duration > 0) {
-      // Normal archive (from EPG): seek by video.duration ratio
-      video.currentTime = video.duration * pos;
-    }
+    if (isFinite(video.duration)) video.currentTime = video.duration * pos;
   } else {
     // LIVE SEEK
     const totalMs = times.stop - times.start;
@@ -526,12 +519,18 @@ function handleSeek(e) {
     const nowMs = Date.now();
     const behindSec = (nowMs - targetWallMs) / 1000;
 
-    // Pokud kliknu blíž než 20s k aktuálnímu času, zkusím Live hranu
-    if (behindSec < 20) {
+    if (currentArchiveData?._isLiveShift) {
+      // Live shift: stream starts at prog start → video.currentTime = wall offset
+      const progOffsetSec = (new Date(targetWallMs) - times.start) / 1000;
+      const clampedSec = Math.max(0, Math.min(getLiveEdge(), progOffsetSec));
+      video.currentTime = clampedSec;
+      isUserBehind = (getLiveEdge() - clampedSec) > 10;
+    } else if (behindSec < 20) {
+      // Near live edge → snap to live
       video.currentTime = getLiveEdge();
       isUserBehind = false;
     } else {
-      // Všechno ostatní přepínáme na "Live Archiv"
+      // Beyond buffer → reload as seeked archive
       seekLiveToWallTime(new Date(targetWallMs), times.start, times.stop);
     }
   }
@@ -544,7 +543,7 @@ timeline.addEventListener('touchstart', handleSeek, { passive: false });
 liveBadge.addEventListener('click', (e) => {
   e.stopPropagation();
   if (isArchive) {
-    // Exit archive → reload as live
+    // Exit archive → reload live (with live shift)
     const ch = document.querySelector(`.ch-item[data-id="${currentChannelId}"]`);
     if (ch) {
       isArchive = false; currentArchiveData = null; isUserBehind = false;
@@ -555,7 +554,7 @@ liveBadge.addEventListener('click', (e) => {
     }
     return;
   }
-  // Snap to live edge in DVR buffer
+  // Snap to live edge (works for both live shift and normal live)
   const liveEdge = getLiveEdge();
   if (isFinite(liveEdge) && liveEdge > 0) {
     video.currentTime = liveEdge;
@@ -573,7 +572,7 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
   loader.classList.remove('hidden');
 
   chName.textContent    = name;
-  chProgram.textContent = isArchive ? (archiveData?.title || '') : '';
+  chProgram.textContent = archiveData?.title || '';
   if (logo) { chLogo.src = logo; chLogo.classList.remove('hidden'); }
   else chLogo.classList.add('hidden');
 
@@ -583,6 +582,7 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
   let finalUrl = url.replace('http://94.241.90.115:8889', '/oneplay');
 
   if (startUnix) {
+    // Archive / EPG seek: load from specific time
     let stopUnix;
     if (archiveData?.stop) {
       stopUnix = Math.floor(parseEPGDate(archiveData.stop).getTime() / 1000);
@@ -591,11 +591,36 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
       stopUnix = Math.floor((el ? parseEPGDate(el.dataset.stop) : new Date()).getTime() / 1000);
     }
     if (stopUnix <= startUnix) stopUnix = startUnix + 3600;
-    // FIX for stalling: add 30 min buffer beyond program end
-    // so the stream token doesn't expire mid-playback
-    stopUnix += 30 * 60;
+    stopUnix += 30 * 60; // 30min buffer so token doesn't expire
     const sep = finalUrl.includes('?') ? '&' : '?';
     finalUrl += `${sep}utc=${startUnix}&lutc=${stopUnix}&_t=${Date.now()}`;
+  } else {
+    // LIVE kanál — načíst stream od začátku aktuálního pořadu
+    // Tím bude celý pořad v HLS bufferu a půjde volně přetáčet zpět
+    const chEl = document.querySelector(`.ch-item[data-id="${channelId}"]`);
+    if (chEl && chEl.dataset.start) {
+      const progStart = parseEPGDate(chEl.dataset.start);
+      const progStop  = parseEPGDate(chEl.dataset.stop);
+      const now = new Date();
+      if (progStart && progStop && progStart < now && progStop > now) {
+        // Pořad právě běží — načíst od začátku, HLS engine skok na live edge
+        const progStartUnix = Math.floor(progStart.getTime() / 1000);
+        const progStopUnix  = Math.floor(progStop.getTime() / 1000) + 30 * 60;
+        const sep = finalUrl.includes('?') ? '&' : '?';
+        finalUrl += `${sep}utc=${progStartUnix}&lutc=${progStopUnix}&_t=${Date.now()}`;
+        // Uložit info pro timeline — ale isArchive zůstane false (jsme live)
+        currentArchiveData = {
+          title:         chEl.dataset.title || '',
+          start:         chEl.dataset.start || '',
+          stop:          chEl.dataset.stop  || '',
+          desc:          chEl.dataset.desc  || '',
+          image:         chEl.dataset.img   || '',
+          _progStartMs:  progStart.getTime(),
+          _progStopMs:   progStop.getTime(),
+          _isLiveShift:  true, // příznak: jsme live, ne archiv
+        };
+      }
+    }
   }
 
   video.pause();
@@ -714,7 +739,21 @@ async function fetchEPG(id) {
       el.dataset.img   = d.image || '';
       const epgEl = el.querySelector('.ch-epg');
       if (epgEl) epgEl.textContent = d.title;
-      if (id === currentChannelId && !isArchive) chProgram.textContent = d.title;
+      if (id === currentChannelId && !isArchive) {
+        chProgram.textContent = d.title;
+        // Update live shift data when EPG refreshes (program changed)
+        if (currentArchiveData?._isLiveShift && d.start && d.stop) {
+          const newStart = parseEPGDate(d.start);
+          const newStop  = parseEPGDate(d.stop);
+          if (newStart && newStop) {
+            currentArchiveData._progStartMs = newStart.getTime();
+            currentArchiveData._progStopMs  = newStop.getTime();
+            currentArchiveData.start        = d.start;
+            currentArchiveData.stop         = d.stop;
+            currentArchiveData.title        = d.title;
+          }
+        }
+      }
     }
   } catch(e) {}
 }
