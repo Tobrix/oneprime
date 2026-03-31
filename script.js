@@ -164,34 +164,40 @@ function flashCenter(icon, stay = false) {
 // Archive: seeks video.currentTime normally (range 0..duration)
 window.doSkip = function(s) {
   try {
-    const target = video.currentTime + s;
     const liveEdge = getLiveEdge();
     const bufStart = getSeekableStart();
+    const target = video.currentTime + s;
 
-    if (!isArchive) {
-      // Jsme v LIVE režimu
-      if (s > 0 && target >= liveEdge - 5) {
-        // Skok vpřed na LIVE hranu
-        video.currentTime = liveEdge;
-        isUserBehind = false;
-      } else if (target >= bufStart && target <= liveEdge) {
-        // Skok je v rámci malého bufferu (pár sekund zpět)
-        video.currentTime = target;
-        isUserBehind = true;
-      } else {
-        // Skok je MIMO buffer (chceme jít dál do historie)
+    // 1. Pokud jsme v LIVE a chceme jít zpět pod hranici bufferu (obvykle 30s)
+    if (!isArchive && s < 0 && target < (bufStart + 5)) {
         const times = getChannelTimes();
         if (times) {
-          const behindFromLive = liveEdge - target; 
-          const targetWallMs = Date.now() - (behindFromLive * 1000);
-          seekLiveToWallTime(new Date(targetWallMs), times.start, times.stop);
+            // Vypočítáme přesný čas (Wall Clock), kde jsme byli minus 10s
+            const behindFromLive = liveEdge - target;
+            const targetWallMs = Date.now() - (behindFromLive * 1000);
+            
+            console.log("⚠️ Opouštím LIVE buffer, přecházím do ARCHIVU");
+            seekLiveToWallTime(new Date(targetWallMs), times.start, times.stop);
+            return; // Důležité: seekLiveToWallTime už vyřeší zbytek
         }
-      }
-    } else {
-      // Jsme v ARCHIVU - standardní posun
-      video.currentTime = Math.max(0, Math.min(video.duration, target));
     }
-  } catch(e) { console.error("Skip error:", e); }
+
+    // 2. Pokud už jsme v ARCHIVU (nebo skáčeme v rámci bufferu)
+    if (isArchive) {
+        video.currentTime = Math.max(0, Math.min(video.duration, target));
+    } else {
+        // Skok v rámci LIVE bufferu (těch pár vteřin co prohlížeč drží)
+        if (target >= bufStart && target <= liveEdge) {
+            video.currentTime = target;
+            isUserBehind = true;
+        } else if (s > 0 && target >= liveEdge - 5) {
+            video.currentTime = liveEdge;
+            isUserBehind = false;
+        }
+    }
+  } catch(e) {
+      console.error("Skip error:", e);
+  }
 
   // Animace ikonky
   const el = s < 0 ? indLeft : indRight;
@@ -201,7 +207,6 @@ window.doSkip = function(s) {
     el.classList.add('animating');
     setTimeout(() => el.classList.remove('animating'), 500);
   }
-  showControls();
 };
 
 // ── VOLUME ────────────────────────────────
@@ -352,10 +357,23 @@ function updateTimeline() {
   if (totalMs <= 0) return;
 
   if (isArchive) {
-    const pct = video.duration > 0 ? (video.currentTime / video.duration * 100) : 0;
-    tlPos.style.width  = pct + '%';
-    tlLive.style.width = '100%';
-    if (tlThumb) tlThumb.style.left = pct + '%';
+    const times = getChannelTimes();
+    if (times) {
+      const { start, stop } = times;
+      const totalMs = stop - start;
+      
+      // Vypočítáme aktuální reálný čas (Wall Clock) v archivu
+      // currentArchiveData.start je čas, kdy začal tento konkrétní stream
+      const streamStartMs = parseEPGDate(currentArchiveData.start).getTime();
+      const currentWallTimeMs = streamStartMs + (video.currentTime * 1000);
+      
+      // Procentuální pozice v rámci CELÉHO pořadu (od začátku do konce na ose)
+      const pct = Math.max(0, Math.min(100, (currentWallTimeMs - start.getTime()) / totalMs * 100));
+
+      tlPos.style.width = pct + '%';
+      if (tlThumb) tlThumb.style.left = pct + '%';
+      tlLive.style.width = '100%'; // V archivu je "budoucnost" vždy plná
+    }
   } else {
     // Live: show position relative to program time window
     const liveEdgePct = Math.max(0, Math.min(100, (now - start) / totalMs * 100));
