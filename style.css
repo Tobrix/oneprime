@@ -806,14 +806,6 @@ input{outline:none;border:none;color:inherit;font:inherit;background:none;}
 .epg-modal-cancel:hover { background:rgba(255,255,255,.1); color:var(--c-text); }
 .epg-modal-future { font-size:.8rem; color:var(--c-text3); padding:10px 0; }
 
-/* ── CENTER INDICATOR FIX ────────────────── */
-#ind-center {
-  position: absolute !important;
-  left: 50% !important;
-  top: 50% !important;
-  transform: translate(-50%, -50%) !important;
-}
-
 /* ── MOBILE MODAL ────────────────────────── */
 @media (max-width: 767px) {
   .epg-modal-overlay {
@@ -856,9 +848,12 @@ input{outline:none;border:none;color:inherit;font:inherit;background:none;}
 #ind-center {
   position: absolute !important;
   left: 50% !important;
-  top: 48% !important;
+  top: 48% !important; /* TADY to změň také na 48% nebo 45% */
   transform: translate(-50%, -50%) !important;
   pointer-events: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 /* Skip indicators also fixed */
 #ind-left  { left: 40px !important; top: 48% !important; transform: translateY(-50%) !important; }
