@@ -87,17 +87,15 @@ function getSeekableStart() {
 
 // ── CONTROLS VISIBILITY ───────────────────
 function showControls() {
-  // Don't touch controls when EPG sheet is open — prevents flicker
-  const epgSheetEl = document.getElementById('epg-sheet');
-  if (epgSheetEl && !epgSheetEl.classList.contains('sheet-hidden')) return;
   controls.classList.remove('controls-hidden');
   controlsVisible = true;
   resetInactivity();
 }
 function hideControls() {
-  if (!panel.classList.contains('panel-hidden')) return;
+  // Never hide when EPG, panel or quality menu is open
   const epgSheet = document.getElementById('epg-sheet');
   if (epgSheet && !epgSheet.classList.contains('sheet-hidden')) return;
+  if (!panel.classList.contains('panel-hidden')) return;
   if (qualMenu && !qualMenu.classList.contains('hidden')) return;
   controls.classList.add('controls-hidden');
   controlsVisible = false;
@@ -106,19 +104,12 @@ function resetInactivity() {
   clearTimeout(inactivityTimer);
   inactivityTimer = setTimeout(hideControls, 3500);
 }
-// Only show controls if pointer is NOT over EPG sheet or channels panel
-function handlePointerMove(e) {
-  const epgEl = document.getElementById('epg-sheet');
-  const panelEl = document.getElementById('channels-panel');
-  const bdEl = document.getElementById('epg-backdrop');
-  const pBdEl = document.getElementById('panel-backdrop');
-  if (e.target.closest('#epg-sheet') || e.target.closest('#channels-panel')) return;
-  if (e.target.closest('#epg-backdrop') || e.target.closest('#panel-backdrop')) return;
-  if (e.target.closest('#epg-modal-overlay') || e.target.closest('#epg-hover-popup')) return;
-  showControls();
-}
-app.addEventListener('pointermove', handlePointerMove, {passive: true});
-app.addEventListener('pointerdown', handlePointerMove, {passive: true});
+// FIX: attach mousemove ONLY to video-wrapper (not whole app)
+// Moving mouse over EPG sheet won't trigger controls show/hide cycle
+const videoWrapper = document.getElementById('video-wrapper');
+videoWrapper.addEventListener('mousemove', showControls);
+videoWrapper.addEventListener('mousedown', showControls);
+videoWrapper.addEventListener('touchstart', showControls, {passive: true});
 
 // ── VIDEO CLICK ───────────────────────────
 controls.addEventListener('click', (e) => {
@@ -175,7 +166,7 @@ window.doSkip = function(s) {
   try {
     const target = video.currentTime + s;
     if (!isArchive) {
-      // Live DVR seek
+      // Live skip
       const liveEdge = getLiveEdge();
       const bufStart = getSeekableStart();
       if (isFinite(liveEdge) && liveEdge > 0) {
@@ -183,10 +174,21 @@ window.doSkip = function(s) {
           // Forward → snap to live edge
           video.currentTime = liveEdge;
           isUserBehind = false;
+        } else if (target >= bufStart) {
+          // Within DVR buffer — just seek
+          video.currentTime = target;
+          isUserBehind = true;
         } else {
-          // Clamp within buffer
-          video.currentTime = Math.max(bufStart, Math.min(liveEdge, target));
-          isUserBehind = (liveEdge - video.currentTime) > 10;
+          // Beyond DVR buffer — use catchup URL
+          const times = getChannelTimes();
+          if (times) {
+            // Calculate wall-clock target time
+            const behindFromLive = liveEdge - target; // seconds
+            const targetWallMs = Date.now() - behindFromLive * 1000;
+            seekLiveToWallTime(new Date(targetWallMs), times.start, times.stop);
+            isUserBehind = true;
+          }
+          // Skip indicator then return (seekLiveToWallTime handles stream)
         }
       }
     } else {
@@ -398,6 +400,68 @@ timeline.addEventListener('mouseleave', () => { tlHover.style.display = 'none'; 
 // KEY: Never reloads stream. Uses video.currentTime only.
 // Live: converts position to seconds-behind-live, seeks in DVR buffer.
 // Archive: seeks by proportion of video.duration.
+// Seek live stream to a wall-clock target time using shift/catchup URL.
+// This reloads the stream with utc= and lutc= params so we can go back
+// further than the DVR buffer (which is only ~30s).
+// The timeline still shows the full program (start→stop), just offset.
+function seekLiveToWallTime(targetWallTime, progStart, progStop) {
+  const ch = document.querySelector(`.ch-item[data-id="${currentChannelId}"]`);
+  if (!ch) return;
+
+  const startUnix = Math.floor(targetWallTime.getTime() / 1000);
+  // Use program stop + buffer so stream doesn't expire mid-seek
+  const stopUnix  = Math.floor(progStop.getTime() / 1000) + 30 * 60;
+
+  // Switch to archive mode but keep the original program times for timeline
+  isArchive = true;
+  isUserBehind = true;
+  currentArchiveData = {
+    title: ch.dataset.title || '',
+    start: progStart.getFullYear()
+      + (progStart.getMonth()+1).toString().padStart(2,'0')
+      + progStart.getDate().toString().padStart(2,'0')
+      + progStart.getHours().toString().padStart(2,'0')
+      + progStart.getMinutes().toString().padStart(2,'0')
+      + '00 +0000',
+    stop: progStop.getFullYear()
+      + (progStop.getMonth()+1).toString().padStart(2,'0')
+      + progStop.getDate().toString().padStart(2,'0')
+      + progStop.getHours().toString().padStart(2,'0')
+      + progStop.getMinutes().toString().padStart(2,'0')
+      + '00 +0000',
+    desc:  ch.dataset.desc || '',
+    image: ch.dataset.img  || '',
+  };
+
+  const isApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  let finalUrl = ch.dataset.url.replace('http://94.241.90.115:8889', '/oneplay');
+  finalUrl += `?utc=${startUnix}&lutc=${stopUnix}&_t=${Date.now()}`;
+
+  loader.classList.remove('hidden');
+  video.pause();
+  if (!isApple) { video.src = ''; video.load(); }
+  if (hls) { hls.destroy(); hls = null; }
+
+  if (Hls.isSupported() && !isApple) {
+    hls = new Hls({
+      liveSyncDurationCount: 0,
+      enableWorker: true, startLevel: -1,
+      manifestLoadingMaxRetry: 15, levelLoadingMaxRetry: 15,
+      fragLoadingMaxRetry: 20, fragLoadingRetryDelay: 1000,
+    });
+    hls.loadSource(finalUrl);
+    hls.attachMedia(video);
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      video.play().catch(() => {});
+      updatePlayIcon(); buildQualMenu();
+    });
+    hls.on(Hls.Events.FRAG_BUFFERED, () => loader.classList.add('hidden'));
+    hls.on(Hls.Events.ERROR, (ev, d) => { if (d.fatal) loader.classList.add('hidden'); });
+  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    video.src = finalUrl; video.load(); video.play().catch(() => {}); updatePlayIcon();
+  }
+}
+
 function handleSeek(e) {
   if (e.cancelable) e.preventDefault();
   e.stopPropagation();
@@ -408,39 +472,41 @@ function handleSeek(e) {
   const pos    = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
 
   if (isArchive) {
+    // Archive: seek within clip duration
     if (isFinite(video.duration) && video.duration > 0) {
       video.currentTime = video.duration * pos;
       isUserBehind = pos < 0.96;
     }
   } else {
-    // Live seek via DVR buffer — NO stream reload
-    const totalMs       = stop - start;
-    const targetWallMs  = start.getTime() + totalMs * pos;
-    const nowMs         = Date.now();
-    const behindLiveSec = (nowMs - targetWallMs) / 1000;
+    // LIVE seek — calculate wall-clock target from timeline position
+    const totalMs      = stop - start;
+    const targetWallMs = start.getTime() + totalMs * pos;
+    const nowMs        = Date.now();
+    const behindSec    = (nowMs - targetWallMs) / 1000;
 
-    const liveEdge = getLiveEdge();
-    const bufStart = getSeekableStart();
-
-    if (!isFinite(liveEdge) || liveEdge <= 0) {
-      // No seekable info yet — skip
-      showControls(); return;
-    }
-
-    if (behindLiveSec <= 5) {
-      // Clicking at live edge → snap to live
-      video.currentTime = liveEdge;
-      isUserBehind = false;
+    if (behindSec <= 5) {
+      // Near live edge — just snap to edge
+      const liveEdge = getLiveEdge();
+      if (isFinite(liveEdge)) { video.currentTime = liveEdge; isUserBehind = false; }
     } else {
-      const targetVideoTime = liveEdge - behindLiveSec;
-      if (targetVideoTime >= bufStart) {
-        // Within DVR buffer — just seek
-        video.currentTime = targetVideoTime;
-        isUserBehind = true;
+      // Try DVR buffer first (fast, no reload)
+      const liveEdge = getLiveEdge();
+      const bufStart = getSeekableStart();
+      if (isFinite(liveEdge) && liveEdge > 0) {
+        const targetVideoTime = liveEdge - behindSec;
+        if (targetVideoTime >= bufStart) {
+          // Within buffer — just seek
+          video.currentTime = targetVideoTime;
+          isUserBehind = true;
+        } else {
+          // Beyond buffer — reload with catchup URL
+          seekLiveToWallTime(new Date(targetWallMs), start, stop);
+          showControls(); return;
+        }
       } else {
-        // Beyond DVR buffer — clamp to start of buffer
-        video.currentTime = bufStart;
-        isUserBehind = true;
+        // No buffer info yet — use catchup
+        seekLiveToWallTime(new Date(targetWallMs), start, stop);
+        showControls(); return;
       }
     }
   }
@@ -514,11 +580,12 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
   if (Hls.isSupported() && !isApple) {
     hls = new Hls({
       liveSyncDurationCount: isArchive ? 0 : 3,
+      // Keep as much live buffer as possible for DVR seeking
+      liveBackBufferLength: isArchive ? 0 : 3600,
       enableWorker: true,
       startLevel: -1,
       manifestLoadingMaxRetry: 15,
       levelLoadingMaxRetry: 15,
-      // FIX: increase frag retry so it doesn't stall at segment boundaries
       fragLoadingMaxRetry: 20,
       fragLoadingRetryDelay: 1000,
       fragLoadingMaxRetryTimeout: 60000,
