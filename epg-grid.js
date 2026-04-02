@@ -13,7 +13,7 @@ let selectedDay  = todayStr();
 let epgPopup     = null;
 let nowLineTimer  = null;
 
-// ── DATE HELPERS ──────────────────────────
+// ── DATE HELPERS ─────────────────────────
 function todayStr() {
   const d = new Date();
   return d.getFullYear() + (d.getMonth()+1).toString().padStart(2,'0') + d.getDate().toString().padStart(2,'0');
