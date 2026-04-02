@@ -253,7 +253,7 @@
   min-height: 0;
   scroll-behavior: auto;
 }
-#epg-scroll::-webkit-scrollbar { width: 8px; height: 10px; }
+#epg-scroll::-webkit-scrollbar { width: 5px; height: 6px; }
 #epg-scroll::-webkit-scrollbar-track { background: transparent; }
 #epg-scroll::-webkit-scrollbar-thumb {
   background: rgba(99, 102, 241, 0.22);
