@@ -61,6 +61,59 @@ function buildDayTabs() {
   });
 }
 
+// ── PREVIEW STRIP ────────────────────────
+function updatePreviewStrip() {
+  const prevEl    = document.getElementById('epg-preview');
+  const prevImg   = document.getElementById('epg-prev-img');
+  const prevTime  = document.getElementById('epg-prev-time');
+  const prevTitle = document.getElementById('epg-prev-title');
+  const prevDesc  = document.getElementById('epg-prev-desc');
+  if (!prevEl) return;
+
+  const currentId = window.getCurrentChannelId?.();
+  const archData  = window.getCurrentArchiveData?.();
+  const inArchive = window.getIsArchive?.();
+  const chEl = currentId ? document.querySelector(`.ch-item[data-id="${currentId}"]`) : null;
+
+  // Get current program info
+  let prog = null;
+  if (inArchive && archData) {
+    prog = archData;
+  } else if (chEl) {
+    prog = {
+      title: chEl.dataset.title,
+      start: chEl.dataset.start,
+      stop:  chEl.dataset.stop,
+      image: chEl.dataset.img,
+      desc:  chEl.dataset.desc,
+    };
+  }
+
+  if (!prog || !prog.title) { prevEl.classList.add('hidden'); return; }
+  prevEl.classList.remove('hidden');
+
+  const start = parseEPG(prog.start), stop = parseEPG(prog.stop);
+  const dur   = start && stop ? Math.round((stop - start) / 60000) : 0;
+
+  if (prevImg)   { prevImg.src = prog.image || ''; prevImg.style.display = prog.image ? 'block' : 'none'; }
+  if (prevTime)  prevTime.textContent = start && stop ? `${fmt(start)} – ${fmt(stop)} · ${dur} min` : '';
+  if (prevTitle) prevTitle.textContent = prog.title || '';
+  if (prevDesc)  prevDesc.textContent  = prog.desc  || '';
+
+  // Update or add live badge
+  let badge = prevEl.querySelector('.epg-preview-live-badge');
+  if (!inArchive) {
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'epg-preview-live-badge';
+      prevEl.appendChild(badge);
+    }
+    badge.textContent = 'LIVE';
+  } else {
+    if (badge) badge.remove();
+  }
+}
+
 // ── MAIN ENTRY ────────────────────────────
 window.renderEPGGrid = function() {
   const inArchive   = window.getIsArchive?.();
@@ -71,6 +124,7 @@ window.renderEPGGrid = function() {
   } else {
     selectedDay = dayStr(0);
   }
+  updatePreviewStrip();
   buildDayTabs();
   buildGrid();
 };
@@ -350,16 +404,23 @@ function showProgModal(prog, channelId, chEl, start, stop, now) {
   const dur = Math.round((stop - start) / 60000);
   const canPlay = isPast || isLive;
 
+  const chLogo = chEl?.querySelector('.ch-img')?.src || '';
+  const chNameText = chEl?.querySelector('.ch-name')?.textContent?.replace('★','').trim() || '';
+
   overlay.innerHTML = `
     <div class="epg-modal">
       <button class="epg-modal-close"><i data-lucide="x"></i></button>
-      ${prog.image ? `
-        <div class="epg-modal-img">
-          <img src="${prog.image}" alt="">
-          <div class="epg-modal-badge ${isLive?'live':isPast?'past':'future'}">
-            ${isLive ? '● LIVE' : isPast ? 'ZÁZNAM' : 'BRZY'}
-          </div>
-        </div>` : ''}
+      <div class="epg-modal-img" style="${prog.image ? '' : 'height:60px;background:rgba(99,102,241,0.08);'}">
+        ${prog.image ? `<img src="${prog.image}" alt="">` : ''}
+        ${(chLogo || chNameText) ? `
+          <div class="epg-modal-ch-overlay">
+            ${chLogo ? `<img src="${chLogo}" onerror="this.style.display='none'" alt="">` : ''}
+            ${chNameText ? `<span>${chNameText}</span>` : ''}
+          </div>` : ''}
+        <div class="epg-modal-badge ${isLive?'live':isPast?'past':'future'}">
+          ${isLive ? 'LIVE' : isPast ? 'ZÁZNAM' : 'BRZY'}
+        </div>
+      </div>
       <div class="epg-modal-body">
         <div class="epg-modal-time">${fmt(start)} – ${fmt(stop)} · ${dur} min</div>
         <div class="epg-modal-title">${prog.title || ''}</div>
