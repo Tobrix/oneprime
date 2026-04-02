@@ -41,7 +41,7 @@ html,body{
 button{cursor:pointer;border:none;outline:none;background:none;color:inherit;font:inherit;}
 input{outline:none;border:none;color:inherit;font:inherit;background:none;}
 
-/* ── APP ROOT ─────────────────────────────── */
+/* ── APP ROOT ────────────────────────────── */
 #app{
   width:100vw;height:100dvh;
   position:relative;overflow:hidden;
