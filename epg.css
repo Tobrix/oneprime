@@ -246,7 +246,6 @@
 }
 
 /* ── GRID SCROLL AREA ────────────────────── */
-/* ── GRID SCROLL AREA — UPRAVENO ── */
 #epg-scroll {
   flex: 1;
   overflow: auto;
@@ -254,27 +253,16 @@
   min-height: 0;
   scroll-behavior: auto;
 }
-
-/* Tloušťka scrollbaru: width je pro svislý (vlevo), height pro vodorovný (dole) */
-#epg-scroll::-webkit-scrollbar { 
-  width: 10px;   /* Zvětšeno z 4px */
-  height: 10px;  /* Zvětšeno z 5px */
-}
-
-#epg-scroll::-webkit-scrollbar-track { 
-  background: rgba(255, 255, 255, 0.02); /* Mírné pozadí dráhy, aby byl vidět prostor */
-}
-
+#epg-scroll::-webkit-scrollbar { width: 8px; height: 10px; }
+#epg-scroll::-webkit-scrollbar-track { background: transparent; }
 #epg-scroll::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.35); /* Trochu sytější barva pro lepší viditelnost */
-  border-radius: 10px;                  /* Plné zakulacení */
-  border: 2px solid transparent;        /* Triko: vytvoří mírný padding kolem posuvníku */
-  background-clip: content-box;
+  background: rgba(99, 102, 241, 0.22);
+  border-radius: 4px;
+}
+#epg-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.4);
 }
 
-#epg-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 102, 241, 0.6);  /* Výraznější barva při najetí myší */
-}
 
 /* ── TIME RULER ──────────────────────────── */
 #epg-time-ruler {
