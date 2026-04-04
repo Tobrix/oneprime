@@ -168,15 +168,12 @@ window.doSkip = function(s) {
     const bufStart = getSeekableStart();
     const target = video.currentTime + s;
 
-    // 1. Live shift mode: video.currentTime = seconds from prog start → just seek
+    // 1. Live shift mode: video.currentTime works directly (stream = full program)
     if (!isArchive && currentArchiveData?._isLiveShift) {
-      const times = getChannelTimes();
-      if (times) {
-        const totalSec = (times.stop.getTime() - times.start.getTime()) / 1000;
-        const newTime  = Math.max(0, Math.min(video.currentTime + s, totalSec));
-        video.currentTime = newTime;
-        isUserBehind = (liveEdge - newTime) > 10;
-      }
+      const newTime = Math.max(0, Math.min(video.duration || 999999, video.currentTime + s));
+      video.currentTime = newTime;
+      // isUserBehind = are we behind the live edge?
+      isUserBehind = (video.duration - newTime) > 10;
       // Fall through to indicator animation
     } else if (!isArchive && s < 0 && target < (bufStart + 5)) {
         // Normal live: beyond buffer → load as seeked archive
@@ -402,10 +399,13 @@ function updateTimeline() {
 
     const liveEdge = getLiveEdge();
     let posPct;
-    if (currentArchiveData?._isLiveShift && isFinite(liveEdge) && liveEdge > 0) {
-      // Live shift: video.currentTime is seconds from program start (utc param)
-      const currentWallMs = start.getTime() + video.currentTime * 1000;
-      posPct = Math.max(0, Math.min(liveEdgePct, (currentWallMs - start.getTime()) / totalMs * 100));
+    if (currentArchiveData?._isLiveShift) {
+      // Live shift: video.currentTime = seconds from program start
+      // Just map directly to timeline percentage
+      const progDuration = (times.stop.getTime() - times.start.getTime()) / 1000;
+      posPct = progDuration > 0
+        ? Math.max(0, Math.min(liveEdgePct, (video.currentTime / progDuration) * 100))
+        : liveEdgePct;
     } else if (isFinite(liveEdge) && liveEdge > 0) {
       const behindSec = liveEdge - video.currentTime;
       const posMs     = (now - start) - behindSec * 1000;
@@ -520,11 +520,13 @@ function handleSeek(e) {
     const behindSec = (nowMs - targetWallMs) / 1000;
 
     if (currentArchiveData?._isLiveShift) {
-      // Live shift: stream starts at prog start → video.currentTime = wall offset
-      const progOffsetSec = (new Date(targetWallMs) - times.start) / 1000;
-      const clampedSec = Math.max(0, Math.min(getLiveEdge(), progOffsetSec));
+      // Live shift: video.currentTime=0 is program start, duration is full program
+      // Convert wall-clock click position to video offset seconds
+      const progOffsetSec = (new Date(targetWallMs).getTime() - times.start.getTime()) / 1000;
+      const maxSec = isFinite(video.duration) ? video.duration : 99999;
+      const clampedSec = Math.max(0, Math.min(maxSec, progOffsetSec));
       video.currentTime = clampedSec;
-      isUserBehind = (getLiveEdge() - clampedSec) > 10;
+      isUserBehind = (maxSec - clampedSec) > 10;
     } else if (behindSec < 20) {
       // Near live edge → snap to live
       video.currentTime = getLiveEdge();
@@ -608,6 +610,8 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
         const progStopUnix  = Math.floor(progStop.getTime() / 1000) + 30 * 60;
         const sep = finalUrl.includes('?') ? '&' : '?';
         finalUrl += `${sep}utc=${progStartUnix}&lutc=${progStopUnix}&_t=${Date.now()}`;
+        console.log('📺 Live shift URL:', finalUrl);
+        console.log('📺 Program:', progStart.toLocaleTimeString(), '→', progStop.toLocaleTimeString());
         // Uložit info pro timeline — ale isArchive zůstane false (jsme live)
         currentArchiveData = {
           title:         chEl.dataset.title || '',
@@ -627,11 +631,15 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
   if (!isApple) { video.src = ''; video.load(); }
   if (hls) { hls.destroy(); hls = null; }
 
+  // isLiveShift: stream has utc/lutc → archival HLS, treat like VOD
+  const isLiveShift = !isArchive && currentArchiveData?._isLiveShift;
+
   if (Hls.isSupported() && !isApple) {
     hls = new Hls({
-      liveSyncDurationCount: isArchive ? 0 : 3,
-      // Keep as much live buffer as possible for DVR seeking
-      liveBackBufferLength: isArchive ? 0 : 3600,
+      // liveSyncDurationCount:0 for archive/shift → play from beginning, no jump to live edge
+      liveSyncDurationCount: (isArchive || isLiveShift) ? 0 : 3,
+      liveBackBufferLength: (isArchive || isLiveShift) ? 0 : 60,
+      maxBufferLength: (isArchive || isLiveShift) ? 60 : 30,
       enableWorker: true,
       startLevel: -1,
       manifestLoadingMaxRetry: 15,
@@ -643,7 +651,21 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
     hls.loadSource(finalUrl);
     hls.attachMedia(video);
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      video.play().catch(() => {});
+      if (isLiveShift) {
+        // Live shift: seek to live edge (current moment in program)
+        // so playback starts at "now" but user can scrub back freely
+        hls.on(Hls.Events.LEVEL_LOADED, function onLevel(ev, data) {
+          hls.off(Hls.Events.LEVEL_LOADED, onLevel);
+          // Seek to live edge = end of available fragments
+          const duration = data.details?.totalduration || 0;
+          if (duration > 0) {
+            video.currentTime = duration; // jump to latest available
+          }
+          video.play().catch(() => {});
+        });
+      } else {
+        video.play().catch(() => {});
+      }
       updatePlayIcon();
       buildQualMenu();
     });
