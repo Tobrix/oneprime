@@ -168,12 +168,15 @@ window.doSkip = function(s) {
     const bufStart = getSeekableStart();
     const target = video.currentTime + s;
 
-    // 1. Live shift mode: video.currentTime works directly (stream = full program)
+    // 1. Live shift mode: video.currentTime = seconds from prog start → just seek
     if (!isArchive && currentArchiveData?._isLiveShift) {
-      const newTime = Math.max(0, Math.min(video.duration || 999999, video.currentTime + s));
-      video.currentTime = newTime;
-      // isUserBehind = are we behind the live edge?
-      isUserBehind = (video.duration - newTime) > 10;
+      const times = getChannelTimes();
+      if (times) {
+        const totalSec = (times.stop.getTime() - times.start.getTime()) / 1000;
+        const newTime  = Math.max(0, Math.min(video.currentTime + s, totalSec));
+        video.currentTime = newTime;
+        isUserBehind = (liveEdge - newTime) > 10;
+      }
       // Fall through to indicator animation
     } else if (!isArchive && s < 0 && target < (bufStart + 5)) {
         // Normal live: beyond buffer → load as seeked archive
@@ -184,6 +187,15 @@ window.doSkip = function(s) {
             seekLiveToWallTime(new Date(targetWallMs), times.start, times.stop);
             return;
         }
+    }
+
+    // 1b. Live shift: just move video.currentTime by ±10s
+    if (!isArchive && currentArchiveData?._isLiveShift) {
+      let maxSec = isFinite(video.duration) ? video.duration : 999999;
+      if (video.seekable && video.seekable.length > 0) maxSec = video.seekable.end(0);
+      const newT = Math.max(0, Math.min(maxSec, video.currentTime + s));
+      video.currentTime = newT;
+      isUserBehind = (maxSec - newT) > 10;
     }
 
     // 2. Pokud už jsme v ARCHIVU (nebo skáčeme v rámci bufferu)
@@ -265,9 +277,17 @@ function updateLiveStatus() {
   const isBehind = isApple
     ? (!isFinite(video.duration) ? isUserBehind : (diff > 25 || isUserBehind))
     : diff > 16;
-  const recording = isArchive || isBehind || video.paused;
+  // Live shift: check if we're at live edge
+  let liveShiftBehind = false;
+  if (!isArchive && currentArchiveData?._isLiveShift) {
+    let maxSec = isFinite(video.duration) ? video.duration : 0;
+    if (video.seekable && video.seekable.length > 0) maxSec = video.seekable.end(0);
+    liveShiftBehind = maxSec > 0 && (maxSec - video.currentTime) > 12;
+  }
+  const recording = isArchive || isBehind || liveShiftBehind || video.paused;
   liveBadge.classList.toggle('recording', recording);
-  liveText.textContent = isArchive ? 'ARCHIV' : (recording ? 'ZÁZNAM' : 'LIVE');
+  liveText.textContent = isArchive ? 'ARCHIV'
+    : (liveShiftBehind ? 'ZÁZNAM' : recording ? 'ZÁZNAM' : 'LIVE');
 }
 video.addEventListener('play',       updateLiveStatus);
 video.addEventListener('pause',      updateLiveStatus);
@@ -397,21 +417,23 @@ function updateTimeline() {
     const liveEdgePct = Math.max(0, Math.min(100, (now - start) / totalMs * 100));
     tlLive.style.width = liveEdgePct + '%';
 
-    const liveEdge = getLiveEdge();
     let posPct;
-    if (currentArchiveData?._isLiveShift) {
+    if (!isArchive && currentArchiveData?._isLiveShift) {
       // Live shift: video.currentTime = seconds from program start
-      // Just map directly to timeline percentage
-      const progDuration = (times.stop.getTime() - times.start.getTime()) / 1000;
-      posPct = progDuration > 0
-        ? Math.max(0, Math.min(liveEdgePct, (video.currentTime / progDuration) * 100))
+      // Direct mapping: 0s = 0%, fullProg = liveEdgePct
+      const progDurSec = totalMs / 1000;
+      posPct = progDurSec > 0
+        ? Math.max(0, Math.min(liveEdgePct, (video.currentTime / progDurSec) * 100))
         : liveEdgePct;
-    } else if (isFinite(liveEdge) && liveEdge > 0) {
-      const behindSec = liveEdge - video.currentTime;
-      const posMs     = (now - start) - behindSec * 1000;
-      posPct = Math.max(0, Math.min(liveEdgePct, posMs / totalMs * 100));
     } else {
-      posPct = liveEdgePct;
+      const liveEdge = getLiveEdge();
+      if (isFinite(liveEdge) && liveEdge > 0) {
+        const behindSec = liveEdge - video.currentTime;
+        const posMs     = (now - start) - behindSec * 1000;
+        posPct = Math.max(0, Math.min(liveEdgePct, posMs / totalMs * 100));
+      } else {
+        posPct = liveEdgePct;
+      }
     }
     tlPos.style.width = posPct + '%';
     if (tlThumb) tlThumb.style.left = posPct + '%';
@@ -512,6 +534,15 @@ function handleSeek(e) {
 
   if (isArchive) {
     if (isFinite(video.duration)) video.currentTime = video.duration * pos;
+  } else if (!isArchive && currentArchiveData?._isLiveShift) {
+    // Live shift: video.currentTime = seconds from prog start, seek directly
+    const progDurSec = (times.stop.getTime() - times.start.getTime()) / 1000;
+    const targetSec  = progDurSec * pos;
+    // Clamp to available seekable range
+    let maxSec = isFinite(video.duration) ? video.duration : progDurSec;
+    if (video.seekable && video.seekable.length > 0) maxSec = video.seekable.end(0);
+    video.currentTime = Math.max(0, Math.min(maxSec, targetSec));
+    isUserBehind = (maxSec - video.currentTime) > 10;
   } else {
     // LIVE SEEK
     const totalMs = times.stop - times.start;
@@ -520,13 +551,11 @@ function handleSeek(e) {
     const behindSec = (nowMs - targetWallMs) / 1000;
 
     if (currentArchiveData?._isLiveShift) {
-      // Live shift: video.currentTime=0 is program start, duration is full program
-      // Convert wall-clock click position to video offset seconds
-      const progOffsetSec = (new Date(targetWallMs).getTime() - times.start.getTime()) / 1000;
-      const maxSec = isFinite(video.duration) ? video.duration : 99999;
-      const clampedSec = Math.max(0, Math.min(maxSec, progOffsetSec));
+      // Live shift: stream starts at prog start → video.currentTime = wall offset
+      const progOffsetSec = (new Date(targetWallMs) - times.start) / 1000;
+      const clampedSec = Math.max(0, Math.min(getLiveEdge(), progOffsetSec));
       video.currentTime = clampedSec;
-      isUserBehind = (maxSec - clampedSec) > 10;
+      isUserBehind = (getLiveEdge() - clampedSec) > 10;
     } else if (behindSec < 20) {
       // Near live edge → snap to live
       video.currentTime = getLiveEdge();
@@ -610,8 +639,6 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
         const progStopUnix  = Math.floor(progStop.getTime() / 1000) + 30 * 60;
         const sep = finalUrl.includes('?') ? '&' : '?';
         finalUrl += `${sep}utc=${progStartUnix}&lutc=${progStopUnix}&_t=${Date.now()}`;
-        console.log('📺 Live shift URL:', finalUrl);
-        console.log('📺 Program:', progStart.toLocaleTimeString(), '→', progStop.toLocaleTimeString());
         // Uložit info pro timeline — ale isArchive zůstane false (jsme live)
         currentArchiveData = {
           title:         chEl.dataset.title || '',
@@ -631,41 +658,44 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
   if (!isApple) { video.src = ''; video.load(); }
   if (hls) { hls.destroy(); hls = null; }
 
-  // isLiveShift: stream has utc/lutc → archival HLS, treat like VOD
-  const isLiveShift = !isArchive && currentArchiveData?._isLiveShift;
-
   if (Hls.isSupported() && !isApple) {
+    // For live shift: stream has fixed utc/lutc window = full program
+    // Must use liveSyncDurationCount:0 so HLS.js doesn't skip to "live edge"
+    // and we can freely seek anywhere in the program
+    const _isLiveShift = !isArchive && currentArchiveData?._isLiveShift;
     hls = new Hls({
-      // liveSyncDurationCount:0 for archive/shift → play from beginning, no jump to live edge
-      liveSyncDurationCount: (isArchive || isLiveShift) ? 0 : 3,
-      liveBackBufferLength: (isArchive || isLiveShift) ? 0 : 60,
-      maxBufferLength: (isArchive || isLiveShift) ? 60 : 30,
+      liveSyncDurationCount: (isArchive || _isLiveShift) ? 0 : 3,
+      liveBackBufferLength:  (isArchive || _isLiveShift) ? 0 : 60,
+      maxBufferLength:       60,
       enableWorker: true,
       startLevel: -1,
       manifestLoadingMaxRetry: 15,
-      levelLoadingMaxRetry: 15,
-      fragLoadingMaxRetry: 20,
-      fragLoadingRetryDelay: 1000,
-      fragLoadingMaxRetryTimeout: 60000,
+      levelLoadingMaxRetry:    15,
+      fragLoadingMaxRetry:     20,
+      fragLoadingRetryDelay:   1000,
     });
     hls.loadSource(finalUrl);
     hls.attachMedia(video);
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      if (isLiveShift) {
-        // Live shift: seek to live edge (current moment in program)
-        // so playback starts at "now" but user can scrub back freely
-        hls.on(Hls.Events.LEVEL_LOADED, function onLevel(ev, data) {
-          hls.off(Hls.Events.LEVEL_LOADED, onLevel);
-          // Seek to live edge = end of available fragments
-          const duration = data.details?.totalduration || 0;
-          if (duration > 0) {
-            video.currentTime = duration; // jump to latest available
+      if (_isLiveShift) {
+        // Seek to "now" = seconds elapsed since program start
+        const progStartMs = currentArchiveData._progStartMs;
+        const elapsedSec  = progStartMs
+          ? Math.max(0, (Date.now() - progStartMs) / 1000 - 5)
+          : 0;
+        // Wait briefly for seekable range to populate
+        const trySeek = (attempts) => {
+          if (video.seekable && video.seekable.length > 0) {
+            const maxSeek = video.seekable.end(0);
+            video.currentTime = Math.min(elapsedSec, maxSeek);
+            console.log('⏩ Live shift: seeked to', Math.round(video.currentTime) + 's /', Math.round(maxSeek) + 's');
+          } else if (attempts > 0) {
+            setTimeout(() => trySeek(attempts - 1), 300);
           }
-          video.play().catch(() => {});
-        });
-      } else {
-        video.play().catch(() => {});
+        };
+        setTimeout(() => trySeek(10), 200);
       }
+      video.play().catch(() => {});
       updatePlayIcon();
       buildQualMenu();
     });
@@ -674,7 +704,6 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
       if (d.fatal) {
         console.warn('HLS fatal error:', d.type, d.details);
         loader.classList.add('hidden');
-        // Fatal network error → try to recover
         if (d.type === Hls.ErrorTypes.NETWORK_ERROR) {
           setTimeout(() => { if (hls) hls.startLoad(); }, 2000);
         }
