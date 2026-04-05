@@ -216,7 +216,7 @@ function buildGrid() {
       renderProgs(track, epgCache[selectedDay][id], id, ch);
     } else {
       const fetchDay = (dstr) =>
-        fetch(`/epg-data?id=${encodeURIComponent(id)}&full=true&date=${dstr}`)
+        fetch(`/epg-data?id=${encodeURIComponent(id)}&full=true&date=${dstr}&tv=${window._currentTV||'oneprime'}`)
           .then(r => r.json()).catch(() => []);
 
       if (selectedDay === dayStr(0)) {
