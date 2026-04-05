@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>OnePrime TV</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'><stop offset='0%25' stop-color='%234f46e5'/><stop offset='100%25' stop-color='%237c3aed'/></linearGradient></defs><rect width='100' height='100' rx='22' fill='url(%23g)'/><rect x='16' y='28' width='68' height='44' rx='7' fill='white' opacity='0.12'/><rect x='20' y='32' width='60' height='36' rx='5' fill='white' opacity='0.95'/><circle cx='50' cy='50' r='11' fill='%234f46e5'/><polygon points='46,45 46,55 57,50' fill='white'/><rect x='34' y='76' width='32' height='5' rx='2.5' fill='white' opacity='0.5'/></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'><stop offset='0%25' stop-color='%234f46e5'/><stop offset='100%25' stop-color='%237c3aed'/></linearGradient></defs><rect width='100' height='100' rx='22' fill='url(%23g)'/><rect x='20' y='32' width='60' height='36' rx='5' fill='white' opacity='0.95'/><circle cx='50' cy='50' r='11' fill='%234f46e5'/><polygon points='46,45 46,55 57,50' fill='white'/></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
@@ -13,39 +13,272 @@
     <link rel="stylesheet" href="epg.css">
     <link rel="stylesheet" href="phone.css">
     <link rel="stylesheet" href="ipad.css">
+    <style>
+    /* ── INTRO SCREEN ─────────────────────── */
+    #intro-screen {
+        position: fixed; inset: 0; z-index: 9999;
+        background: #06070d;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        gap: 0;
+    }
+    #intro-screen.fade-out {
+        animation: intro-fade-out 0.7s ease forwards;
+    }
+    @keyframes intro-fade-out {
+        to { opacity: 0; pointer-events: none; }
+    }
+
+    /* Logo animation */
+    .intro-logo {
+        display: flex; flex-direction: column;
+        align-items: center; gap: 20px;
+        animation: intro-logo-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    @keyframes intro-logo-in {
+        from { opacity: 0; transform: scale(0.7) translateY(20px); }
+        to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .intro-logo svg { filter: drop-shadow(0 0 40px rgba(99,102,241,0.6)); }
+
+    .intro-logo-text {
+        font-family: 'Syne', sans-serif;
+        font-size: clamp(2rem, 6vw, 3.5rem);
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        color: #fff;
+        text-shadow: 0 0 60px rgba(99,102,241,0.5);
+    }
+    .intro-logo-text span { color: #818cf8; }
+
+    .intro-tagline {
+        font-size: clamp(0.75rem, 2vw, 0.9rem);
+        color: rgba(255,255,255,0.35);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        font-weight: 500;
+        margin-top: 4px;
+        animation: intro-logo-in 1s 0.2s cubic-bezier(0.22,1,0.36,1) both;
+    }
+
+    /* Progress bar */
+    .intro-progress {
+        width: 120px; height: 2px;
+        background: rgba(255,255,255,0.08);
+        border-radius: 1px;
+        margin-top: 48px;
+        overflow: hidden;
+        animation: intro-logo-in 0.8s 0.4s both;
+    }
+    .intro-progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #6366f1, #8b5cf6);
+        border-radius: 1px;
+        width: 0%;
+        transition: width 1.8s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* ── TV SELECTION SCREEN ──────────────── */
+    #tv-select-screen {
+        position: fixed; inset: 0; z-index: 9998;
+        background: #06070d;
+        display: none; flex-direction: column;
+        align-items: center; justify-content: center;
+        gap: 48px;
+        padding: 24px;
+    }
+    #tv-select-screen.visible {
+        display: flex;
+        animation: intro-logo-in 0.5s cubic-bezier(0.22,1,0.36,1) both;
+    }
+
+    .tv-select-title {
+        font-family: 'Syne', sans-serif;
+        font-size: clamp(1.1rem, 3vw, 1.5rem);
+        font-weight: 700;
+        color: rgba(255,255,255,0.7);
+        text-align: center;
+        letter-spacing: 0.01em;
+    }
+
+    .tv-cards {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+        justify-content: center;
+        max-width: 700px;
+        width: 100%;
+    }
+
+    .tv-card {
+        flex: 1;
+        min-width: 240px;
+        max-width: 300px;
+        background: rgba(99,102,241,0.06);
+        border: 1px solid rgba(99,102,241,0.18);
+        border-radius: 20px;
+        padding: 32px 28px;
+        cursor: pointer;
+        transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+        display: flex; flex-direction: column;
+        align-items: center; gap: 16px;
+        position: relative;
+        overflow: hidden;
+        text-align: center;
+        user-select: none;
+    }
+    .tv-card::before {
+        content: '';
+        position: absolute; inset: 0;
+        background: radial-gradient(circle at 50% 0%, rgba(99,102,241,0.12), transparent 70%);
+        opacity: 0;
+        transition: opacity 0.25s;
+    }
+    .tv-card:hover {
+        border-color: rgba(99,102,241,0.5);
+        transform: translateY(-4px);
+        box-shadow: 0 16px 48px rgba(99,102,241,0.2);
+    }
+    .tv-card:hover::before { opacity: 1; }
+    .tv-card:active { transform: scale(0.97); }
+
+    .tv-card-icon {
+        width: 64px; height: 64px;
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        border-radius: 16px;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 8px 24px rgba(99,102,241,0.4);
+    }
+    .tv-card-icon svg { width: 32px; height: 32px; color: #fff; }
+
+    .tv-card-name {
+        font-family: 'Syne', sans-serif;
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #e8eaf6;
+    }
+
+    .tv-card-desc {
+        font-size: 0.78rem;
+        color: rgba(255,255,255,0.38);
+        line-height: 1.5;
+    }
+
+    .tv-card-badge {
+        font-size: 0.65rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 3px 10px;
+        border-radius: 20px;
+        background: rgba(99,102,241,0.15);
+        color: #818cf8;
+        border: 1px solid rgba(99,102,241,0.25);
+    }
+
+    /* Remember choice */
+    .tv-remember {
+        font-size: 0.75rem;
+        color: rgba(255,255,255,0.25);
+        text-align: center;
+    }
+    .tv-remember label {
+        display: flex; align-items: center; gap: 8px;
+        cursor: pointer; color: rgba(255,255,255,0.35);
+        transition: color 0.2s;
+    }
+    .tv-remember label:hover { color: rgba(255,255,255,0.6); }
+    .tv-remember input[type=checkbox] {
+        accent-color: #6366f1;
+        width: 14px; height: 14px;
+        cursor: pointer;
+    }
+
+    @media (max-width: 540px) {
+        .tv-cards { gap: 14px; }
+        .tv-card { min-width: 100%; max-width: 100%; padding: 24px 20px; flex-direction: row; text-align: left; }
+        .tv-card-icon { width: 48px; height: 48px; flex-shrink: 0; }
+        .tv-card-icon svg { width: 24px; height: 24px; }
+    }
+    </style>
 </head>
 <body>
 
+<!-- ░░ INTRO SCREEN ░░ -->
+<div id="intro-screen">
+    <div class="intro-logo">
+        <svg width="90" height="90" viewBox="0 0 100 100" fill="none">
+            <defs>
+                <linearGradient id="ilg" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#4f46e5"/><stop offset="1" stop-color="#7c3aed"/>
+                </linearGradient>
+            </defs>
+            <rect width="100" height="100" rx="22" fill="url(#ilg)"/>
+            <rect x="20" y="32" width="60" height="36" rx="5" fill="white" opacity="0.95"/>
+            <circle cx="50" cy="50" r="11" fill="#4f46e5"/>
+            <polygon points="46,45 46,55 57,50" fill="white"/>
+        </svg>
+        <div class="intro-logo-text">OnePrime<span>TV</span></div>
+        <div class="intro-tagline">Vaše televizní platforma</div>
+    </div>
+    <div class="intro-progress"><div class="intro-progress-bar" id="intro-bar"></div></div>
+</div>
+
+<!-- ░░ TV SELECTION SCREEN ░░ -->
+<div id="tv-select-screen">
+    <div class="tv-select-title">Vyberte si televizní službu</div>
+    <div class="tv-cards">
+        <div class="tv-card" id="tv-oneprime" onclick="selectTV('oneprime')">
+            <div class="tv-card-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="3" width="20" height="14" rx="2"/><path d="m8 21 4-4 4 4"/><path d="M12 17v4"/>
+                </svg>
+            </div>
+            <div>
+                <div class="tv-card-name">OnePrime TV</div>
+                <div class="tv-card-desc">Česká televize, Nova, Prima a více kanálů</div>
+            </div>
+            <div class="tv-card-badge">7 dní zpětně</div>
+        </div>
+        <div class="tv-card" id="tv-sejvi" onclick="selectTV('sejvi')">
+            <div class="tv-card-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M2 8h20M2 16h20M12 2v20M4.93 4.93l14.14 14.14M4.93 19.07 19.07 4.93"/>
+                </svg>
+            </div>
+            <div>
+                <div class="tv-card-name">Sejvi TV</div>
+                <div class="tv-card-desc">Rozšířená nabídka kanálů přes IPTV</div>
+            </div>
+            <div class="tv-card-badge">500+ kanálů</div>
+        </div>
+    </div>
+    <div class="tv-remember">
+        <label>
+            <input type="checkbox" id="remember-choice">
+            Zapamatovat volbu
+        </label>
+    </div>
+</div>
+
 <!-- ░░ APP ROOT ░░ -->
-<div id="app">
+<div id="app" style="display:none;">
 
     <!-- ░░ VIDEO LAYER ░░ -->
     <div id="video-wrapper">
         <video id="video" playsinline webkit-playsinline muted autoplay></video>
-
-        <!-- Ambient glow behind video -->
         <div id="ambient-glow"></div>
-
-        <!-- Loader -->
-        <div id="video-loader" class="hidden">
-            <div class="loader-ring"></div>
-            <span>Načítám...</span>
-        </div>
-
-        <!-- Tap indicators -->
+        <div id="video-loader" class="hidden"><div class="loader-ring"></div><span>Načítám...</span></div>
         <div id="ind-left" class="tap-indicator"><i data-lucide="rotate-ccw"></i><span>10s</span></div>
         <div id="ind-center" class="tap-indicator center"><i data-lucide="play" id="center-icon"></i></div>
         <div id="ind-right" class="tap-indicator"><i data-lucide="rotate-cw"></i><span>10s</span></div>
-
-        <!-- Touch zones -->
         <div class="touch-zone left" id="tz-left"></div>
         <div class="touch-zone right" id="tz-right"></div>
     </div>
 
     <!-- ░░ CONTROLS OVERLAY ░░ -->
     <div id="controls" class="controls-hidden">
-
-        <!-- TOP BAR -->
         <div id="topbar">
             <div id="channel-info">
                 <img id="ch-logo" src="" alt="" class="hidden">
@@ -56,6 +289,10 @@
             </div>
             <div id="topbar-right">
                 <span id="quality-badge" class="badge hidden"></span>
+                <!-- Přepínač TV -->
+                <button id="btn-switch-tv" class="icon-btn" title="Přepnout TV" onclick="switchTV()">
+                    <i data-lucide="shuffle"></i>
+                </button>
                 <button id="btn-channels" class="icon-btn" title="Kanály">
                     <i data-lucide="layout-list"></i>
                 </button>
@@ -68,9 +305,7 @@
             </div>
         </div>
 
-        <!-- BOTTOM BAR -->
         <div id="bottombar">
-            <!-- Timeline -->
             <div id="timeline-row">
                 <span id="t-start">--:--</span>
                 <div id="timeline" class="timeline-track">
@@ -82,31 +317,16 @@
                 </div>
                 <span id="t-end">--:--</span>
             </div>
-
-            <!-- Buttons row -->
             <div id="btn-row">
                 <div id="btn-left">
-                    <button id="btn-play" class="play-btn">
-                        <i data-lucide="play" id="play-icon"></i>
-                    </button>
-                    <button class="icon-btn sm" onclick="doSkip(-10)">
-                        <i data-lucide="rotate-ccw"></i>
-                    </button>
-                    <button class="icon-btn sm" onclick="doSkip(10)">
-                        <i data-lucide="rotate-cw"></i>
-                    </button>
+                    <button id="btn-play" class="play-btn"><i data-lucide="play" id="play-icon"></i></button>
+                    <button class="icon-btn sm" onclick="doSkip(-10)"><i data-lucide="rotate-ccw"></i></button>
+                    <button class="icon-btn sm" onclick="doSkip(10)"><i data-lucide="rotate-cw"></i></button>
                     <div class="vol-wrap">
-                        <button id="btn-mute" class="icon-btn sm">
-                            <i data-lucide="volume-2"></i>
-                        </button>
-                        <div id="vol-slider-wrap">
-                            <input type="range" id="vol-slider" min="0" max="1" step="0.05" value="1">
-                        </div>
+                        <button id="btn-mute" class="icon-btn sm"><i data-lucide="volume-2"></i></button>
+                        <div id="vol-slider-wrap"><input type="range" id="vol-slider" min="0" max="1" step="0.05" value="1"></div>
                     </div>
-                    <div id="live-badge">
-                        <span class="live-dot"></span>
-                        <span id="live-text">LIVE</span>
-                    </div>
+                    <div id="live-badge"><span class="live-dot"></span><span id="live-text">LIVE</span></div>
                 </div>
                 <div id="btn-right">
                     <div class="qual-wrap">
@@ -124,24 +344,21 @@
         </div>
     </div>
 
-    <!-- ░░ CHANNELS PANEL (slide-in) ░░ -->
+    <!-- ░░ CHANNELS PANEL ░░ -->
     <div id="panel-backdrop" class="hidden"></div>
     <aside id="channels-panel" class="panel-hidden">
         <div id="panel-header">
             <div id="panel-logo">
                 <svg width="24" height="24" viewBox="0 0 100 100" fill="none">
-                    <defs>
-                        <linearGradient id="lg" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
-                            <stop stop-color="#4f46e5"/>
-                            <stop offset="1" stop-color="#7c3aed"/>
-                        </linearGradient>
-                    </defs>
+                    <defs><linearGradient id="lg" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+                        <stop stop-color="#4f46e5"/><stop offset="1" stop-color="#7c3aed"/>
+                    </linearGradient></defs>
                     <rect width="100" height="100" rx="22" fill="url(#lg)"/>
                     <rect x="20" y="32" width="60" height="36" rx="5" fill="white" opacity="0.95"/>
                     <circle cx="50" cy="50" r="11" fill="#4f46e5"/>
                     <polygon points="46,45 46,55 57,50" fill="white"/>
                 </svg>
-                <span>OnePrime<strong>TV</strong></span>
+                <span id="panel-tv-name">OnePrime<strong>TV</strong></span>
             </div>
             <button id="panel-close" class="icon-btn"><i data-lucide="x"></i></button>
         </div>
@@ -171,13 +388,89 @@
         </div>
         <div id="epg-scroll">
             <div id="epg-time-ruler"></div>
-            <div id="epg-rows">
-                <div id="epg-now-line"></div>
-            </div>
+            <div id="epg-rows"><div id="epg-now-line"></div></div>
         </div>
     </div>
 
 </div><!-- #app -->
+
+<script>
+// ══════════════════════════════════════════
+// INTRO + TV SELECTION
+// ══════════════════════════════════════════
+let currentTV = null; // 'oneprime' | 'sejvi'
+
+function runIntro() {
+    const bar      = document.getElementById('intro-bar');
+    const intro    = document.getElementById('intro-screen');
+    const tvSelect = document.getElementById('tv-select-screen');
+
+    // Check saved preference
+    const saved = localStorage.getItem('selectedTV');
+    if (saved) {
+        // Skip selection, go straight to app
+        setTimeout(() => bar.style.width = '100%', 50);
+        setTimeout(() => {
+            intro.classList.add('fade-out');
+            setTimeout(() => {
+                intro.style.display = 'none';
+                launchApp(saved);
+            }, 700);
+        }, 2200);
+        return;
+    }
+
+    // Show selection after intro
+    setTimeout(() => bar.style.width = '100%', 50);
+    setTimeout(() => {
+        intro.classList.add('fade-out');
+        setTimeout(() => {
+            intro.style.display = 'none';
+            tvSelect.classList.add('visible');
+        }, 700);
+    }, 2200);
+}
+
+function selectTV(tv) {
+    const tvSelect = document.getElementById('tv-select-screen');
+    const remember = document.getElementById('remember-choice').checked;
+
+    if (remember) localStorage.setItem('selectedTV', tv);
+
+    tvSelect.style.animation = 'intro-fade-out 0.4s ease forwards';
+    setTimeout(() => {
+        tvSelect.style.display = 'none';
+        launchApp(tv);
+    }, 400);
+}
+
+function launchApp(tv) {
+    currentTV = tv;
+    window._currentTV = tv;
+    document.getElementById('app').style.display = 'block';
+    // Update panel title
+    const nameEl = document.getElementById('panel-tv-name');
+    if (nameEl) nameEl.innerHTML = tv === 'sejvi'
+        ? 'Sejvi<strong>TV</strong>'
+        : 'OnePrime<strong>TV</strong>';
+}
+
+// Přepínač TV (z přehrávače)
+window.switchTV = function() {
+    const tv = currentTV === 'oneprime' ? 'sejvi' : 'oneprime';
+    localStorage.removeItem('selectedTV');
+    // Soft reload — show TV selection again
+    const sel = document.getElementById('tv-select-screen');
+    document.getElementById('app').style.display = 'none';
+    sel.style.animation = '';
+    sel.style.display = 'flex';
+    sel.classList.add('visible');
+    currentTV = null;
+    window._currentTV = null;
+};
+
+runIntro();
+</script>
 
 <script src="epg-grid.js"></script>
 <script src="script.js"></script>
