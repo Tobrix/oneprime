@@ -470,8 +470,9 @@ function seekLiveToWallTime(targetWallTime, progStart, progStop) {
   if (!ch) return;
 
   const startUnix = Math.floor(targetWallTime.getTime() / 1000);
-  // Use program stop + buffer so stream doesn't expire mid-seek
-  const stopUnix = Math.floor(progStop.getTime() / 1000) + 120;
+  const stopUnix  = Math.floor(progStop.getTime() / 1000) + 30 * 60;
+  const _tv       = window._currentTV || 'oneprime';
+  const dSec      = stopUnix - startUnix;
 
   // Switch to archive mode but keep the original program times for timeline
   isArchive = true;
@@ -495,8 +496,20 @@ function seekLiveToWallTime(targetWallTime, progStart, progStop) {
   };
 
   const isApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  let finalUrl = ch.dataset.url.replace('http://94.241.90.115:8889', '/oneplay');
-  finalUrl += `?utc=${startUnix}&lutc=${stopUnix}&_t=${Date.now()}`;
+  let finalUrl;
+  if (_tv === 'sejvi') {
+    const csrc = ch.dataset.catchupSrc || '';
+    if (csrc) {
+      finalUrl = csrc.replace('{utc}', startUnix).replace('{duration}', dSec)
+                     .replace('http://mojetv.xyz:4000', '/sejvi');
+    } else {
+      finalUrl = ch.dataset.url.replace('http://mojetv.xyz:4000', '/sejvi');
+      finalUrl += `?utc=${startUnix}&lutc=${stopUnix}&_t=${Date.now()}`;
+    }
+  } else {
+    finalUrl = ch.dataset.url.replace('http://94.241.90.115:8889', '/oneplay');
+    finalUrl += `?utc=${startUnix}&lutc=${stopUnix}&_t=${Date.now()}`;
+  }
 
   loader.classList.remove('hidden');
   video.pause();
@@ -610,7 +623,13 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
   document.querySelectorAll('.ch-item').forEach(el => el.classList.toggle('active', el.dataset.id === channelId));
 
   const isApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  let finalUrl = url.replace('http://94.241.90.115:8889', '/oneplay');
+  const tv = window._currentTV || 'oneprime';
+  let finalUrl;
+  if (tv === 'sejvi') {
+    finalUrl = url.replace('http://mojetv.xyz:4000', '/sejvi');
+  } else {
+    finalUrl = url.replace('http://94.241.90.115:8889', '/oneplay');
+  }
 
   if (startUnix) {
     // Archive / EPG seek: load from specific time
@@ -622,9 +641,29 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
       stopUnix = Math.floor((el ? parseEPGDate(el.dataset.stop) : new Date()).getTime() / 1000);
     }
     if (stopUnix <= startUnix) stopUnix = startUnix + 3600;
-    stopUnix += 30 * 60; // 30min buffer so token doesn't expire
-    const sep = finalUrl.includes('?') ? '&' : '?';
-    finalUrl += `${sep}utc=${startUnix}&lutc=${stopUnix}&_t=${Date.now()}`;
+    const durationSec = stopUnix - startUnix + 30 * 60;
+
+    if (tv === 'sejvi') {
+      // Sejvi catchup-source: /timeshift/user/pass/{duration}/{utc}/ID.ts
+      const chEl2 = document.querySelector(`.ch-item[data-id="${channelId}"]`);
+      const catchupSrc = chEl2?.dataset?.catchupSrc || '';
+      if (catchupSrc) {
+        // Replace {utc} and {duration} placeholders
+        let csUrl = catchupSrc
+          .replace('{utc}', startUnix)
+          .replace('{duration}', durationSec);
+        finalUrl = csUrl.replace('http://mojetv.xyz:4000', '/sejvi');
+      } else {
+        // Fallback: try ?utc= format
+        const sep = finalUrl.includes('?') ? '&' : '?';
+        finalUrl += `${sep}utc=${startUnix}&lutc=${stopUnix}&_t=${Date.now()}`;
+      }
+    } else {
+      // OnePrime: shift format with utc/lutc
+      stopUnix += 30 * 60;
+      const sep = finalUrl.includes('?') ? '&' : '?';
+      finalUrl += `${sep}utc=${startUnix}&lutc=${stopUnix}&_t=${Date.now()}`;
+    }
   } else {
     // LIVE kanál — načíst stream od začátku aktuálního pořadu
     // Tím bude celý pořad v HLS bufferu a půjde volně přetáčet zpět
@@ -779,7 +818,8 @@ async function playNextProgram() {
 // ── EPG FETCH ─────────────────────────────
 async function fetchEPG(id) {
   try {
-    const r = await fetch(`/epg-data?id=${encodeURIComponent(id)}`);
+    const tv = window._currentTV || 'oneprime';
+    const r = await fetch(`/epg-data?id=${encodeURIComponent(id)}&tv=${tv}`);
     const d = await r.json();
     const el = document.querySelector(`.ch-item[data-id="${id}"]`);
     if (el && d.title) {
@@ -895,7 +935,9 @@ async function loadPlaylist() {
       const logo  = logoM ? logoM[1] : '';
       let url = '';
       for (let j = i+1; j < lines.length; j++) { if (lines[j].startsWith('http')) { url = lines[j].trim(); break; } }
-      if (url) channelsData.push({ id, name, logo, url });
+      const catchupSrcM = lines[i].match(/catchup-source="([^"]+)"/);
+      const catchupSrc  = catchupSrcM ? catchupSrcM[1] : '';
+      if (url) channelsData.push({ id, name, logo, url, catchupSrc });
     }
     const sorted = [...channelsData].sort((a,b) =>
       (favorites.includes(b.id)?1:0) - (favorites.includes(a.id)?1:0));
@@ -915,8 +957,9 @@ function renderChannels(channels, existingEpgData = null) {
     const cached = existingEpgData?.[ch.id];
     const el = document.createElement('div');
     el.className = 'ch-item' + (ch.id === currentChannelId ? ' active' : '');
-    el.dataset.id  = ch.id;
-    el.dataset.url = ch.url;
+    el.dataset.id         = ch.id;
+    el.dataset.url        = ch.url;
+    el.dataset.catchupSrc = ch.catchupSrc || '';
     // Restore cached EPG data if available
     if (cached) {
       el.dataset.start = cached.start;
