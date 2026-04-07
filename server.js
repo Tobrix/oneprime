@@ -1,7 +1,10 @@
+'use strict';
 const fastify = require('fastify')({ logger: false });
 const axios   = require('axios');
 const xml2js  = require('xml2js');
 const path    = require('path');
+const http    = require('http');
+const https   = require('https');
 
 fastify.register(require('@fastify/cors'), { origin: '*' });
 fastify.register(require('@fastify/static'), {
@@ -9,57 +12,39 @@ fastify.register(require('@fastify/static'), {
     prefix: '/',
 });
 
-// ══════════════════════════════════════════
-// EPG CACHE — dvě TV, dva zdroje
-// ══════════════════════════════════════════
-const epgCache = {
-    oneprime: [],  // z 94.241.90.115:8889/epg
-    sejvi:    [],  // z mojetv.xyz:4000 (XMLTV URL z playlistu)
-};
+// ── EPG CACHE ─────────────────────────────
+let cachedEpg = [];
 
-const ONEPRIME_EPG_URL = 'http://94.241.90.115:8889/epg';
-const SEJVI_EPG_URL    = 'http://mojetv.xyz:4000/xmltv.php?username=sejviczthoms&password=SejviCZthoms1122@';
-
-async function loadEPG(tv) {
-    const url = tv === 'oneprime' ? ONEPRIME_EPG_URL : SEJVI_EPG_URL;
+async function updateEpg() {
     try {
-        console.log(`⏳ EPG [${tv}] načítám z ${url}`);
-        const res    = await axios.get(url, { timeout: 30000 });
+        console.log('⏳ Stahuji EPG...');
+        const res = await axios.get('http://94.241.90.115:8889/epg', { timeout: 30000 });
         const parser = new xml2js.Parser();
         const result = await parser.parseStringPromise(res.data);
         if (result.tv && result.tv.programme) {
-            epgCache[tv] = result.tv.programme;
-            console.log(`✅ EPG [${tv}] — ${epgCache[tv].length} pořadů`);
+            cachedEpg = result.tv.programme;
+            console.log(`✅ EPG: ${cachedEpg.length} pořadů`);
         }
     } catch (err) {
-        console.error(`❌ EPG [${tv}] chyba:`, err.message);
+        console.error('❌ EPG chyba:', err.message);
     }
 }
+updateEpg();
+setInterval(updateEpg, 60 * 60 * 1000);
 
-// Načíst EPG při startu a pak každou hodinu
-loadEPG('oneprime');
-loadEPG('sejvi');
-setInterval(() => loadEPG('oneprime'), 60 * 60 * 1000);
-setInterval(() => loadEPG('sejvi'),    60 * 60 * 1000);
-
-// ══════════════════════════════════════════
-// EPG ENDPOINT — ?id=&tv=oneprime|sejvi
-// ══════════════════════════════════════════
+// ── EPG ENDPOINT ──────────────────────────
 fastify.get('/epg-data', async (request, reply) => {
-    const queryId  = decodeURIComponent(request.query.id || '');
-    const tv       = request.query.tv || 'oneprime';
-    const isFull   = request.query.full === 'true';
-    const queryDate= request.query.date;
+    const queryId   = decodeURIComponent(request.query.id || '');
+    const isFull    = request.query.full === 'true';
+    const queryDate = request.query.date;
 
-    const programmes = epgCache[tv] || [];
-
-    if (!queryId || programmes.length === 0) {
+    if (!queryId || cachedEpg.length === 0) {
         return isFull ? [] : { title: 'Program není k dispozici' };
     }
 
-    const channelProgs = programmes.filter(p => p.$.channel === queryId);
+    const progs = cachedEpg.filter(p => p.$.channel === queryId);
 
-    const formatProg = (p) => ({
+    const fmt = (p) => ({
         title: (typeof p.title[0] === 'object') ? p.title[0]._ : p.title[0],
         desc:  p.desc  ? ((typeof p.desc[0]  === 'object') ? p.desc[0]._  : p.desc[0])  : '',
         start: p.$.start,
@@ -68,107 +53,85 @@ fastify.get('/epg-data', async (request, reply) => {
     });
 
     if (isFull) {
-        if (queryDate) {
-            return channelProgs.filter(p =>
-                p.$.start.startsWith(queryDate) || p.$.stop.startsWith(queryDate)
-            ).map(formatProg);
-        }
-        return channelProgs.map(formatProg);
+        const list = queryDate
+            ? progs.filter(p => p.$.start.startsWith(queryDate) || p.$.stop.startsWith(queryDate))
+            : progs;
+        return list.map(fmt);
     }
 
-    // Current program
-    const now = new Date();
-    const czTime = new Intl.DateTimeFormat('cs-CZ', {
+    // Aktuální pořad
+    const czParts = new Intl.DateTimeFormat('cs-CZ', {
         timeZone: 'Europe/Prague',
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
-        hour12: false,
-    }).formatToParts(now);
+        year:'numeric',month:'2-digit',day:'2-digit',
+        hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false,
+    }).formatToParts(new Date());
     const t = {};
-    czTime.forEach(({ type, value }) => t[type] = value);
+    czParts.forEach(({ type, value }) => t[type] = value);
     const nowStr = `${t.year}${t.month}${t.day}${t.hour}${t.minute}${t.second}`;
 
     reply.header('Cache-Control', 'no-store');
-
-    const current = channelProgs.find(p => {
-        const s = p.$.start.split(' ')[0];
-        const e = p.$.stop.split(' ')[0];
+    const current = progs.find(p => {
+        const s = p.$.start.split(' ')[0], e = p.$.stop.split(' ')[0];
         return nowStr >= s && nowStr <= e;
     });
-    if (current) return formatProg(current);
-
-    const upcoming = channelProgs.find(p => p.$.start.split(' ')[0] > nowStr);
-    return upcoming ? formatProg(upcoming) : { title: 'Program není k dispozici' };
+    if (current) return fmt(current);
+    const upcoming = progs.find(p => p.$.start.split(' ')[0] > nowStr);
+    return upcoming ? fmt(upcoming) : { title: 'Program není k dispozici' };
 });
 
-// ══════════════════════════════════════════
-// PROXY — OnePrime (94.241.90.115:8889)
-// ══════════════════════════════════════════
-const oneprime_opts = {
-    rewriteRequestHeaders: (req, headers) => ({
-        ...headers,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0',
-        'host': '94.241.90.115:8889',
-        'connection': 'keep-alive',
-    }),
-    getUpstream: (req, base) => base,
-    undici: { bodyTimeout: 0, headersTimeout: 0, keepAliveTimeout: 60000 },
-};
+// ── MANUAL PROXY — správně forwarduje query string ──
+// @fastify/http-proxy v10 má problém s query params při prefix strippingu.
+// Tato implementace explicitně přenáší celou URL včetně query stringu.
 
-fastify.register(require('@fastify/http-proxy'), {
-    upstream: 'http://94.241.90.115:8889',
-    prefix: '/oneplay',
-    replyOptions: oneprime_opts,
-});
-fastify.register(require('@fastify/http-proxy'), {
-    upstream: 'http://94.241.90.115:8889',
-    prefix: '/play',
-    replyOptions: oneprime_opts,
-});
+const UPSTREAM = 'http://94.241.90.115:8889';
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0';
 
-// ══════════════════════════════════════════
-// PROXY — Sejvi (mojetv.xyz:4000)
-// ══════════════════════════════════════════
-const sejvi_opts = {
-    rewriteRequestHeaders: (req, headers) => ({
-        ...headers,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0',
-        'host': 'mojetv.xyz:4000',
-        'connection': 'keep-alive',
-    }),
-    undici: { bodyTimeout: 0, headersTimeout: 0, keepAliveTimeout: 60000 },
-};
+function makeProxy(prefix) {
+    // Wildcard route zachytí vše včetně query stringů
+    fastify.all(`${prefix}/*`, { config: { rawBody: true } }, async (request, reply) => {
+        // Strip prefix a zachovat zbytek URL + query string
+        const stripped = request.url.slice(prefix.length);
+        const upstreamUrl = UPSTREAM + stripped;
 
-fastify.register(require('@fastify/http-proxy'), {
-    upstream: 'http://mojetv.xyz:4000',
-    prefix: '/sejvi',
-    replyOptions: sejvi_opts,
-});
-
-// ══════════════════════════════════════════
-// PLAYLIST ENDPOINT — vrátí playlist pro danou TV
-// Sejvi playlist se stahuje dynamicky (vždy čerstvý)
-// ══════════════════════════════════════════
-fastify.get('/playlist/:tv', async (request, reply) => {
-    const tv = request.params.tv;
-    if (tv === 'oneprime') {
-        // Vrátit lokální playlist.m3u (přes static files)
-        return reply.redirect('/playlist.m3u');
-    }
-    if (tv === 'sejvi') {
         try {
-            const res = await axios.get(
-                'http://mojetv.xyz:4000/get.php?username=sejviczthoms&password=SejviCZthoms1122@&type=m3u_plus&output=ts',
-                { timeout: 15000, responseType: 'text' }
-            );
-            reply.header('Content-Type', 'application/x-mpegurl');
-            return reply.send(res.data);
+            const agent = new http.Agent({ keepAlive: true });
+            const upRes = await axios({
+                method: request.method,
+                url: upstreamUrl,
+                headers: {
+                    ...request.headers,
+                    'host': '94.241.90.115:8889',
+                    'User-Agent': UA,
+                    'connection': 'keep-alive',
+                },
+                responseType: 'stream',
+                timeout: 0,   // bez timeoutu pro streamy
+                httpAgent: agent,
+                maxRedirects: 5,
+            });
+
+            // Forward response headers
+            const skipHeaders = ['transfer-encoding', 'content-encoding'];
+            Object.entries(upRes.headers).forEach(([k, v]) => {
+                if (!skipHeaders.includes(k.toLowerCase())) reply.header(k, v);
+            });
+            reply.code(upRes.status);
+
+            // CORS pro HLS
+            reply.header('Access-Control-Allow-Origin', '*');
+            reply.header('Access-Control-Allow-Headers', '*');
+
+            return reply.send(upRes.data);
         } catch (err) {
-            reply.status(502).send({ error: 'Nelze načíst Sejvi playlist: ' + err.message });
+            const status = err.response?.status || 502;
+            console.error(`Proxy error [${prefix}]: ${upstreamUrl} → ${status} ${err.message}`);
+            return reply.code(status).send({ error: err.message });
         }
-    }
-    reply.status(404).send({ error: 'Neznámá TV' });
-});
+    });
+}
+
+makeProxy('/oneplay');
+makeProxy('/play');
 
 // Start
 const start = async () => {
