@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>OnePrime TV</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'><stop offset='0%25' stop-color='%234f46e5'/><stop offset='100%25' stop-color='%237c3aed'/></linearGradient></defs><rect width='100' height='100' rx='22' fill='url(%23g)'/><rect x='16' y='28' width='68' height='44' rx='7' fill='white' opacity='0.12'/><rect x='20' y='32' width='60' height='36' rx='5' fill='white' opacity='0.95'/><circle cx='50' cy='50' r='11' fill='%234f46e5'/><polygon points='46,45 46,55 57,50' fill='white'/><rect x='34' y='76' width='32' height='5' rx='2.5' fill='white' opacity='0.5'/></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="epg.css">
+    <link rel="stylesheet" href="phone.css">
+    <link rel="stylesheet" href="ipad.css">
+</head>
+<body>
+
+<!-- ░░ APP ROOT ░░ -->
+<div id="app">
+
+    <!-- ░░ VIDEO LAYER ░░ -->
+    <div id="video-wrapper">
+        <video id="video" playsinline webkit-playsinline muted autoplay></video>
+
+        <!-- Ambient glow behind video -->
+        <div id="ambient-glow"></div>
+
+        <!-- Loader -->
+        <div id="video-loader" class="hidden">
+            <div class="loader-ring"></div>
+            <span>Načítám...</span>
+        </div>
+
+        <!-- Tap indicators -->
+        <div id="ind-left" class="tap-indicator"><i data-lucide="rotate-ccw"></i><span>10s</span></div>
+        <div id="ind-center" class="tap-indicator center"><i data-lucide="play" id="center-icon"></i></div>
+        <div id="ind-right" class="tap-indicator"><i data-lucide="rotate-cw"></i><span>10s</span></div>
+
+        <!-- Touch zones -->
+        <div class="touch-zone left" id="tz-left"></div>
+        <div class="touch-zone right" id="tz-right"></div>
+    </div>
+
+    <!-- ░░ CONTROLS OVERLAY ░░ -->
+    <div id="controls" class="controls-hidden">
+
+        <!-- TOP BAR -->
+        <div id="topbar">
+            <div id="channel-info">
+                <img id="ch-logo" src="" alt="" class="hidden">
+                <div>
+                    <div id="ch-name">Vyberte kanál</div>
+                    <div id="ch-program">—</div>
+                </div>
+            </div>
+            <div id="topbar-right">
+                <span id="quality-badge" class="badge hidden"></span>
+                <button id="btn-channels" class="icon-btn" title="Kanály">
+                    <i data-lucide="layout-list"></i>
+                </button>
+                <button id="btn-epg" class="icon-btn" title="Program">
+                    <i data-lucide="calendar-days"></i>
+                </button>
+                <button id="btn-fullscreen" class="icon-btn" title="Celá obrazovka">
+                    <i data-lucide="maximize-2"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- BOTTOM BAR -->
+        <div id="bottombar">
+            <!-- Timeline -->
+            <div id="timeline-row">
+                <span id="t-start">--:--</span>
+                <div id="timeline" class="timeline-track">
+                    <div class="tl-bg"></div>
+                    <div id="tl-live" class="tl-live"></div>
+                    <div id="tl-pos" class="tl-pos"></div>
+                    <div id="tl-thumb" class="tl-thumb"></div>
+                    <div id="tl-hover" class="tl-hover-label"></div>
+                </div>
+                <span id="t-end">--:--</span>
+            </div>
+
+            <!-- Buttons row -->
+            <div id="btn-row">
+                <div id="btn-left">
+                    <button id="btn-play" class="play-btn">
+                        <i data-lucide="play" id="play-icon"></i>
+                    </button>
+                    <button class="icon-btn sm" onclick="doSkip(-10)">
+                        <i data-lucide="rotate-ccw"></i>
+                    </button>
+                    <button class="icon-btn sm" onclick="doSkip(10)">
+                        <i data-lucide="rotate-cw"></i>
+                    </button>
+                    <div class="vol-wrap">
+                        <button id="btn-mute" class="icon-btn sm">
+                            <i data-lucide="volume-2"></i>
+                        </button>
+                        <div id="vol-slider-wrap">
+                            <input type="range" id="vol-slider" min="0" max="1" step="0.05" value="1">
+                        </div>
+                    </div>
+                    <div id="live-badge">
+                        <span class="live-dot"></span>
+                        <span id="live-text">LIVE</span>
+                    </div>
+                </div>
+                <div id="btn-right">
+                    <div class="qual-wrap">
+                        <button id="btn-quality" class="icon-btn sm">
+                            <i data-lucide="sliders-horizontal"></i>
+                            <span id="qual-label">Auto</span>
+                        </button>
+                        <div id="qual-menu" class="dropdown hidden">
+                            <div class="dropdown-title">Kvalita</div>
+                            <div id="qual-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ░░ CHANNELS PANEL (slide-in) ░░ -->
+    <div id="panel-backdrop" class="hidden"></div>
+    <aside id="channels-panel" class="panel-hidden">
+        <div id="panel-header">
+            <div id="panel-logo">
+                <svg width="24" height="24" viewBox="0 0 100 100" fill="none">
+                    <defs>
+                        <linearGradient id="lg" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+                            <stop stop-color="#4f46e5"/>
+                            <stop offset="1" stop-color="#7c3aed"/>
+                        </linearGradient>
+                    </defs>
+                    <rect width="100" height="100" rx="22" fill="url(#lg)"/>
+                    <rect x="20" y="32" width="60" height="36" rx="5" fill="white" opacity="0.95"/>
+                    <circle cx="50" cy="50" r="11" fill="#4f46e5"/>
+                    <polygon points="46,45 46,55 57,50" fill="white"/>
+                </svg>
+                <span>OnePrime<strong>TV</strong></span>
+            </div>
+            <button id="panel-close" class="icon-btn"><i data-lucide="x"></i></button>
+        </div>
+        <div id="panel-search-wrap">
+            <i data-lucide="search" class="search-icon"></i>
+            <input type="text" id="panel-search" placeholder="Hledat kanál...">
+        </div>
+        <div id="channels-list"></div>
+    </aside>
+
+    <!-- ░░ EPG BOTTOM SHEET ░░ -->
+    <div id="epg-backdrop" class="hidden"></div>
+    <div id="epg-sheet" class="sheet-hidden">
+        <div id="epg-handle"></div>
+        <div id="epg-header">
+            <h2>Programový průvodce</h2>
+            <div id="epg-days"></div>
+            <button id="epg-close" class="icon-btn"><i data-lucide="x"></i></button>
+        </div>
+        <div id="epg-preview" class="hidden">
+            <img id="epg-prev-img" src="" alt="">
+            <div id="epg-prev-info">
+                <div id="epg-prev-time"></div>
+                <div id="epg-prev-title"></div>
+                <div id="epg-prev-desc"></div>
+            </div>
+        </div>
+        <div id="epg-scroll">
+            <div id="epg-time-ruler"></div>
+            <div id="epg-rows">
+                <div id="epg-now-line"></div>
+            </div>
+        </div>
+    </div>
+
+</div><!-- #app -->
+
+<script src="epg-grid.js"></script>
+<script src="oneprime.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>
