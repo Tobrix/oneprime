@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════
-   ONEPRIMETV — script.js (Fix v5)
+   ONEPRIMETV — oneprime.js
    Live seek: uses video.currentTime in HLS DVR buffer only,
    NO stream reload on timeline click or skip buttons.
    Archive stall fix: lutc extended + fragLoadingMaxRetry.
@@ -520,9 +520,9 @@ function seekLiveToWallTime(targetWallTime, progStart, progStop) {
     hls.on(Hls.Events.ERROR, (ev, d) => {
       if (d.fatal) {
         loader.classList.add('hidden');
-        console.warn('HLS error:', d.type, d.details, d.response?.code);
-        if (d.response?.code === 404 || d.response?.code === 403) {
-          console.warn('Archive 404/403 — stream not available for this time window');
+        console.warn('HLS fatal:', d.type, d.details, 'code:', d.response?.code, 'url:', d.url);
+        if (d.response?.code === 403 || d.response?.code === 404) {
+          console.warn('Stream nedostupný — zkontroluj utc/lutc parametry nebo dostupnost serveru');
         } else if (d.type === Hls.ErrorTypes.NETWORK_ERROR) {
           setTimeout(() => { if (hls) hls.startLoad(); }, 2000);
         } else if (d.type === Hls.ErrorTypes.MEDIA_ERROR) {
