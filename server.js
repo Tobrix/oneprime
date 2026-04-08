@@ -1,10 +1,11 @@
 'use strict';
-const fastify = require('fastify')({ logger: false });
-const axios   = require('axios');
-const xml2js  = require('xml2js');
-const path    = require('path');
-const http    = require('http');
-const https   = require('https');
+const fastify  = require('fastify')({ logger: false });
+const axios    = require('axios');
+const xml2js   = require('xml2js');
+const path     = require('path');
+const { pipeline } = require('stream');
+const { promisify } = require('util');
+const pipelineAsync = promisify(pipeline);
 
 fastify.register(require('@fastify/cors'), { origin: '*' });
 fastify.register(require('@fastify/static'), {
@@ -19,9 +20,8 @@ async function updateEpg() {
     try {
         console.log('⏳ Stahuji EPG...');
         const res = await axios.get('http://94.241.90.115:8889/epg', { timeout: 30000 });
-        const parser = new xml2js.Parser();
-        const result = await parser.parseStringPromise(res.data);
-        if (result.tv && result.tv.programme) {
+        const result = await new xml2js.Parser().parseStringPromise(res.data);
+        if (result.tv?.programme) {
             cachedEpg = result.tv.programme;
             console.log(`✅ EPG: ${cachedEpg.length} pořadů`);
         }
@@ -38,18 +38,15 @@ fastify.get('/epg-data', async (request, reply) => {
     const isFull    = request.query.full === 'true';
     const queryDate = request.query.date;
 
-    if (!queryId || cachedEpg.length === 0) {
+    if (!queryId || !cachedEpg.length)
         return isFull ? [] : { title: 'Program není k dispozici' };
-    }
 
     const progs = cachedEpg.filter(p => p.$.channel === queryId);
-
-    const fmt = (p) => ({
-        title: (typeof p.title[0] === 'object') ? p.title[0]._ : p.title[0],
-        desc:  p.desc  ? ((typeof p.desc[0]  === 'object') ? p.desc[0]._  : p.desc[0])  : '',
-        start: p.$.start,
-        stop:  p.$.stop,
-        image: (p.icon && p.icon[0].$) ? p.icon[0].$.src : '',
+    const fmt = p => ({
+        title: typeof p.title[0] === 'object' ? p.title[0]._ : p.title[0],
+        desc:  p.desc ? (typeof p.desc[0] === 'object' ? p.desc[0]._ : p.desc[0]) : '',
+        start: p.$.start, stop: p.$.stop,
+        image: p.icon?.[0]?.$?.src || '',
     });
 
     if (isFull) {
@@ -59,11 +56,10 @@ fastify.get('/epg-data', async (request, reply) => {
         return list.map(fmt);
     }
 
-    // Aktuální pořad
     const czParts = new Intl.DateTimeFormat('cs-CZ', {
         timeZone: 'Europe/Prague',
-        year:'numeric',month:'2-digit',day:'2-digit',
-        hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false,
+        year:'numeric', month:'2-digit', day:'2-digit',
+        hour:'2-digit', minute:'2-digit', second:'2-digit', hour12: false,
     }).formatToParts(new Date());
     const t = {};
     czParts.forEach(({ type, value }) => t[type] = value);
@@ -79,59 +75,58 @@ fastify.get('/epg-data', async (request, reply) => {
     return upcoming ? fmt(upcoming) : { title: 'Program není k dispozici' };
 });
 
-// ── MANUAL PROXY — správně forwarduje query string ──
-// @fastify/http-proxy v10 má problém s query params při prefix strippingu.
-// Tato implementace explicitně přenáší celou URL včetně query stringu.
+// ── STREAM PROXY ──────────────────────────
+// Přímé pipe upstream → client, bez bufferování do paměti.
+// Zachovává query string (utc=, lutc=) který @fastify/http-proxy někdy zahazuje.
 
 const UPSTREAM = 'http://94.241.90.115:8889';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0';
 
-function makeProxy(prefix) {
-    // Wildcard route zachytí vše včetně query stringů
-    fastify.all(`${prefix}/*`, { config: { rawBody: true } }, async (request, reply) => {
-        // Strip prefix a zachovat zbytek URL + query string
-        const stripped = request.url.slice(prefix.length);
-        const upstreamUrl = UPSTREAM + stripped;
+function registerProxy(prefix) {
+    fastify.all(`${prefix}/*`, async (request, reply) => {
+        // Zachovat celou cestu + query string, odebrat jen prefix
+        const downstream = request.url.slice(prefix.length); // napr. /play/Nova%20HD.m3u8?utc=...
+        const upstreamUrl = UPSTREAM + downstream;
 
         try {
-            const agent = new http.Agent({ keepAlive: true });
             const upRes = await axios({
-                method: request.method,
-                url: upstreamUrl,
+                method:       request.method || 'GET',
+                url:          upstreamUrl,
+                responseType: 'stream',           // ← klíčové: nefBufferovat
+                timeout:      0,                  // bez timeoutu pro HLS segmenty
                 headers: {
-                    ...request.headers,
-                    'host': '94.241.90.115:8889',
-                    'User-Agent': UA,
-                    'connection': 'keep-alive',
+                    'host':        '94.241.90.115:8889',
+                    'user-agent':  UA,
+                    'accept':      '*/*',
+                    'connection':  'keep-alive',
+                    // Přenést range header pokud existuje (pro HTTP range requests)
+                    ...(request.headers.range ? { range: request.headers.range } : {}),
                 },
-                responseType: 'stream',
-                timeout: 0,   // bez timeoutu pro streamy
-                httpAgent: agent,
                 maxRedirects: 5,
             });
 
-            // Forward response headers
-            const skipHeaders = ['transfer-encoding', 'content-encoding'];
-            Object.entries(upRes.headers).forEach(([k, v]) => {
-                if (!skipHeaders.includes(k.toLowerCase())) reply.header(k, v);
-            });
+            // Přenést status a headers
             reply.code(upRes.status);
-
-            // CORS pro HLS
+            const skip = new Set(['transfer-encoding', 'content-encoding', 'host', 'connection']);
+            for (const [k, v] of Object.entries(upRes.headers)) {
+                if (!skip.has(k.toLowerCase())) reply.header(k, v);
+            }
             reply.header('Access-Control-Allow-Origin', '*');
-            reply.header('Access-Control-Allow-Headers', '*');
+            reply.header('Cache-Control', 'no-store');
 
+            // Pipe stream přímo na response — bez bufferování
             return reply.send(upRes.data);
+
         } catch (err) {
-            const status = err.response?.status || 502;
-            console.error(`Proxy error [${prefix}]: ${upstreamUrl} → ${status} ${err.message}`);
-            return reply.code(status).send({ error: err.message });
+            const code = err.response?.status || 502;
+            console.error(`[proxy ${prefix}] ${upstreamUrl} → ${code}: ${err.message}`);
+            return reply.code(code).send({ error: err.message, url: upstreamUrl });
         }
     });
 }
 
-makeProxy('/oneplay');
-makeProxy('/play');
+registerProxy('/oneplay');
+registerProxy('/play');
 
 // Start
 const start = async () => {
