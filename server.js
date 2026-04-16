@@ -72,6 +72,36 @@ fastify.get('/epg-data', async (request, reply) => {
     return upcoming ? fmt(upcoming) : { title: 'Program není k dispozici' };
 });
 
+
+// ── PLAYLIST PROXY ────────────────────────
+// Stahuje playlist živě ze serveru 94.241.90.115:8889
+// Fallback: pokud selže, vrátí lokální playlist.m3u
+fastify.get('/get-playlist', async (request, reply) => {
+    try {
+        const res = await axios.get('http://94.241.90.115:8889/playlist', {
+            timeout: 10000,
+            responseType: 'text',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0',
+            }
+        });
+        reply.header('Content-Type', 'application/x-mpegurl; charset=utf-8');
+        reply.header('Cache-Control', 'no-store');
+        return reply.send(res.data);
+    } catch (err) {
+        console.warn('Playlist live fetch failed, using local fallback:', err.message);
+        // Fallback na lokální soubor
+        try {
+            const fs = require('fs');
+            const local = fs.readFileSync(path.join(__dirname, 'playlist.m3u'), 'utf-8');
+            reply.header('Content-Type', 'application/x-mpegurl; charset=utf-8');
+            return reply.send(local);
+        } catch (e) {
+            return reply.code(502).send('Playlist nedostupný');
+        }
+    }
+});
+
 // ── STREAM PROXY ─────────────────────────
 const UPSTREAM = 'http://94.241.90.115:8889';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0';
