@@ -495,7 +495,7 @@ function seekLiveToWallTime(targetWallTime, progStart, progStop) {
   };
 
   const isApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  let finalUrl = ch.dataset.url; // already proxied
+  let finalUrl = ch.dataset.url.replace('http://94.241.90.115:8889', '/oneplay');
   finalUrl += `?utc=${startUnix}&lutc=${stopUnix}&_t=${Date.now()}`;
 
   loader.classList.remove('hidden');
@@ -622,7 +622,7 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
   document.querySelectorAll('.ch-item').forEach(el => el.classList.toggle('active', el.dataset.id === channelId));
 
   const isApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  let finalUrl = url; // URL already proxied in loadPlaylist
+  let finalUrl = url.replace('http://94.241.90.115:8889', '/oneplay');
 
   if (startUnix) {
     // Archive / EPG seek: load from specific time
@@ -892,48 +892,27 @@ function toggleFav(id) {
 
 // ── LOAD PLAYLIST ─────────────────────────
 async function loadPlaylist() {
-  const urlSection = new URLSearchParams(location.search).get('section') || 'tv';
-  const TV_GROUPS     = new Set(['základní','sport','sport-world','music','doku','dětské','zpravodajství','4K ultra HD']);
-  const MOVIE_GROUPS  = new Set(['vod','filmové']);
-  const SERIES_GROUPS = new Set(['series']);
-  function sectionOf(g) {
-    if (TV_GROUPS.has(g))     return 'tv';
-    if (MOVIE_GROUPS.has(g))  return 'movies';
-    if (SERIES_GROUPS.has(g)) return 'series';
-    return 'tv';
-  }
   try {
-    const r    = await fetch('/get-playlist');
+    const r    = await fetch('playlist.m3u');
     const text = await r.text();
     const lines = text.split('\n');
     channelsData = [];
     for (let i = 0; i < lines.length; i++) {
       if (!lines[i].startsWith('#EXTINF')) continue;
-      const nameM  = lines[i].match(/tvg-name="([^"]+)"/) || [null, lines[i].split(',').slice(-1)[0]];
-      const idM    = lines[i].match(/tvg-id="([^"]+)"/);
-      const logoM  = lines[i].match(/tvg-logo="([^"]+)"/);
-      const groupM = lines[i].match(/group-title="([^"]+)"/);
-      const name   = nameM[1]?.trim();
-      const id     = (idM?.[1] || name) + '';
-      const logo   = logoM?.[1] || '';
-      const group  = groupM?.[1] || '';
+      const nameM = lines[i].match(/tvg-name="([^"]+)"/) || [null, lines[i].split(',')[1]];
+      const idM   = lines[i].match(/tvg-id="([^"]+)"/);
+      const logoM = lines[i].match(/tvg-logo="([^"]+)"/);
+      const catchupM = lines[i].match(/catchup-source="([^"]+)"/);
+      const name  = nameM[1]?.trim();
+      const id    = idM ? idM[1] : name;
+      const logo  = logoM ? logoM[1] : '';
+      const catchupSrc = catchupM ? catchupM[1] : '';
       let url = '';
       for (let j = i+1; j < lines.length; j++) {
-        const ln = lines[j].trim();
-        if (ln.startsWith('http')) { url = ln; break; }
-        if (ln.startsWith('#EXTINF')) break;
+        if (lines[j].trim().startsWith('http')) { url = lines[j].trim(); break; }
+        if (lines[j].startsWith('#EXTINF')) break;
       }
-      // Proxy through server: http://193.109.193.16:3000/... → /stream/...
-      const proxiedUrl = url.replace('http://193.109.193.16:3000', '/stream');
-      if (proxiedUrl && sectionOf(group) === urlSection) {
-        channelsData.push({ id, name, logo, url: proxiedUrl, group });
-      }
-    }
-    // Update panel title based on section
-    const panelName = document.getElementById('panel-tv-name') || document.querySelector('[id*="panel"]');
-    if (panelName) {
-      const titles = {tv:'Live <strong>TV</strong>',movies:'<strong>Filmy</strong>',series:'<strong>Seriály</strong>'};
-      panelName.innerHTML = titles[urlSection] || 'OnePrime<strong>TV</strong>';
+      if (url) channelsData.push({ id, name, logo, url, catchupSrc });
     }
     const sorted = [...channelsData].sort((a,b) =>
       (favorites.includes(b.id)?1:0) - (favorites.includes(a.id)?1:0));
