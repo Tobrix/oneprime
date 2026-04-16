@@ -10,9 +10,7 @@
     html,body{height:100dvh;background:#06070d;overflow:hidden;font-family:'Inter',sans-serif;color:#e8eaf6}
     body{display:flex;align-items:center;justify-content:center}
     canvas{position:fixed;inset:0;pointer-events:none;opacity:.3}
-
-    /* INTRO */
-    #intro{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;z-index:10;transition:opacity .65s ease}
+    #intro{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;transition:opacity .65s ease}
     #intro.out{opacity:0;pointer-events:none}
     .logo-wrap{display:flex;flex-direction:column;align-items:center;gap:18px;animation:pop .9s cubic-bezier(.22,1,.36,1) both}
     @keyframes pop{from{opacity:0;transform:scale(.72) translateY(28px)}to{opacity:1;transform:scale(1) translateY(0)}}
@@ -23,28 +21,10 @@
     .bar-wrap{margin-top:52px;width:140px;height:2px;background:rgba(255,255,255,.07);border-radius:1px;overflow:hidden;animation:pop .8s .3s both}
     .bar{height:100%;width:0%;background:linear-gradient(90deg,#6366f1,#8b5cf6,#a78bfa);border-radius:1px;transition:width 2.8s cubic-bezier(.4,0,.2,1)}
     .sub{margin-top:18px;font-size:.72rem;color:rgba(255,255,255,.16);letter-spacing:.12em;text-transform:uppercase;transition:opacity .3s;animation:pop .8s .5s both}
-
-    /* MENU */
-    #menu{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:48px;padding:24px;opacity:0;pointer-events:none;transition:opacity .5s ease;z-index:9}
-    #menu.in{opacity:1;pointer-events:all}
-    .menu-title{font-family:'Syne',sans-serif;font-size:clamp(1rem,3vw,1.5rem);font-weight:700;color:rgba(255,255,255,.55);text-align:center}
-    .menu-cards{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;max-width:760px;width:100%}
-    .menu-card{flex:1;min-width:200px;max-width:230px;background:rgba(99,102,241,.07);border:1px solid rgba(99,102,241,.2);border-radius:20px;padding:28px 22px;cursor:pointer;text-align:center;display:flex;flex-direction:column;align-items:center;gap:14px;position:relative;overflow:hidden;transition:all .22s cubic-bezier(.4,0,.2,1);user-select:none}
-    .menu-card::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% -10%,rgba(99,102,241,.15),transparent 65%);opacity:0;transition:opacity .22s}
-    .menu-card:hover{border-color:rgba(99,102,241,.5);transform:translateY(-5px);box-shadow:0 20px 48px rgba(99,102,241,.2)}
-    .menu-card:hover::after{opacity:1}
-    .menu-card:active{transform:scale(.97) translateY(-2px)}
-    .card-icon{width:58px;height:58px;border-radius:16px;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 22px rgba(99,102,241,.38)}
-    .card-icon svg{width:28px;height:28px;stroke:#fff;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-    .card-name{font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:700;color:#e8eaf6}
-    .card-desc{font-size:.74rem;color:rgba(255,255,255,.38);line-height:1.5}
-    .card-badge{font-size:.62rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:20px;background:rgba(99,102,241,.14);color:#818cf8;border:1px solid rgba(99,102,241,.25)}
-    @media(max-width:520px){.menu-cards{gap:10px}.menu-card{min-width:calc(50% - 5px);max-width:none;padding:20px 14px}}
   </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-
 <div id="intro">
   <div class="logo-wrap">
     <svg width="88" height="88" viewBox="0 0 100 100" fill="none">
@@ -61,39 +41,7 @@
   <div class="bar-wrap"><div class="bar" id="bar"></div></div>
   <div class="sub" id="sub">Načítám&hellip;</div>
 </div>
-
-<div id="menu">
-  <div class="menu-title">Co chcete sledovat?</div>
-  <div class="menu-cards">
-    <div class="menu-card" onclick="go('tv')">
-      <div class="card-icon">
-        <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="m8 21 4-4 4 4M12 17v4"/></svg>
-      </div>
-      <div class="card-name">Live TV</div>
-      <div class="card-desc">Živé vysílání, sport, zprávy</div>
-      <div class="card-badge">živě</div>
-    </div>
-    <div class="menu-card" onclick="go('movies')">
-      <div class="card-icon">
-        <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="2.18"/><path d="M7 2v20M17 2v20M2 12h20M2 7h5M17 7h5M2 17h5M17 17h5"/></svg>
-      </div>
-      <div class="card-name">Filmy</div>
-      <div class="card-desc">VOD, klasiky, novinky</div>
-      <div class="card-badge">100+ filmů</div>
-    </div>
-    <div class="menu-card" onclick="go('series')">
-      <div class="card-icon">
-        <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-      </div>
-      <div class="card-name">Seriály</div>
-      <div class="card-desc">Epizody, série, česky &amp; slovensky</div>
-      <div class="card-badge">série</div>
-    </div>
-  </div>
-</div>
-
 <script>
-// particles
 const cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
 let W,H,dots=[];
 function resize(){W=cvs.width=innerWidth;H=cvs.height=innerHeight}
@@ -101,8 +49,7 @@ resize();addEventListener('resize',resize);
 for(let i=0;i<50;i++)dots.push({x:Math.random()*1600-100,y:Math.random()*900-100,vx:(Math.random()-.5)*.2,vy:(Math.random()-.5)*.2,r:Math.random()*1.8+.4,a:Math.random()*.45+.1,hue:240+Math.random()*40});
 (function f(){requestAnimationFrame(f);ctx.clearRect(0,0,W,H);dots.forEach(d=>{d.x+=d.vx;d.y+=d.vy;if(d.x<-20)d.x=W+20;if(d.x>W+20)d.x=-20;if(d.y<-20)d.y=H+20;if(d.y>H+20)d.y=-20;ctx.beginPath();ctx.arc(d.x*W/1600,d.y*H/900,d.r,0,Math.PI*2);ctx.fillStyle=`hsla(${d.hue},80%,72%,${d.a})`;ctx.fill()})})();
 
-// loading messages
-const msgs=['Načítám kanály…','Připravuji obsah…','Připojuji se…','Téměř hotovo…','Vítejte!'];
+const msgs=['Načítám programový průvodce…','Připravuji kanály…','Připojuji se…','Téměř hotovo…','Vítejte!'];
 const subEl=document.getElementById('sub');
 let mi=0;
 function nextMsg(){subEl.style.opacity='0';setTimeout(()=>{subEl.textContent=msgs[mi++%msgs.length];subEl.style.opacity='1'},300)}
@@ -112,13 +59,8 @@ setTimeout(nextMsg,900);setTimeout(nextMsg,1800);setTimeout(nextMsg,2700);setTim
 setTimeout(()=>document.getElementById('bar').style.width='100%',60);
 setTimeout(()=>{
   document.getElementById('intro').classList.add('out');
-  setTimeout(()=>document.getElementById('menu').classList.add('in'),660);
-},4000);
-
-function go(section){
-  document.getElementById('menu').style.opacity='0';
-  setTimeout(()=>location.href='oneprime.html?section='+section,380);
-}
+  setTimeout(()=>location.href='oneprime.html',660);
+},4200);
 </script>
 </body>
 </html>
