@@ -516,7 +516,9 @@ function seekLiveToWallTime(targetWallTime, progStart, progStop) {
       video.play().catch(() => {});
       updatePlayIcon(); buildQualMenu();
     });
-    hls.on(Hls.Events.FRAG_BUFFERED, () => loader.classList.add('hidden'));
+    hls.on(Hls.Events.FRAG_BUFFERED, () => {
+      loader.classList.add('hidden');
+    });
     hls.on(Hls.Events.ERROR, (ev, d) => {
       if (d.fatal) {
         loader.classList.add('hidden');
@@ -688,30 +690,39 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
     });
     hls.loadSource(finalUrl);
     hls.attachMedia(video);
+    // Track if we already seeked for this stream
+    let _liveShiftSeeked = false;
+
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      if (_isLiveShift) {
-        // Seek to "now" = seconds elapsed since program start
-        const progStartMs = currentArchiveData._progStartMs;
-        const elapsedSec  = progStartMs
-          ? Math.max(0, (Date.now() - progStartMs) / 1000 - 5)
-          : 0;
-        // Wait briefly for seekable range to populate
-        const trySeek = (attempts) => {
-          if (video.seekable && video.seekable.length > 0) {
-            const maxSeek = video.seekable.end(0);
-            video.currentTime = Math.min(elapsedSec, maxSeek);
-            console.log('⏩ Live shift: seeked to', Math.round(video.currentTime) + 's /', Math.round(maxSeek) + 's');
-          } else if (attempts > 0) {
-            setTimeout(() => trySeek(attempts - 1), 300);
-          }
-        };
-        setTimeout(() => trySeek(10), 200);
-      }
       video.play().catch(() => {});
       updatePlayIcon();
       buildQualMenu();
     });
-    hls.on(Hls.Events.FRAG_BUFFERED, () => loader.classList.add('hidden'));
+
+    // Seek on first fragment buffered — seekable range is guaranteed to exist
+    hls.on(Hls.Events.FRAG_BUFFERED, () => {
+      if (_isLiveShift && !_liveShiftSeeked) {
+        const progStartMs = currentArchiveData?._progStartMs;
+        if (!progStartMs) return;
+        // elapsedSec = čas od začátku pořadu do teď
+        const elapsedSec = Math.max(0, (Date.now() - progStartMs) / 1000 - 3);
+        const trySeek = (attempts) => {
+          if (video.seekable && video.seekable.length > 0) {
+            const maxSeek = video.seekable.end(0);
+            const seekTo = Math.min(elapsedSec, Math.max(0, maxSeek - 5));
+            video.currentTime = seekTo;
+            _liveShiftSeeked = true;
+            console.log('⏩ Live shift seek:', Math.round(seekTo) + 's /', Math.round(maxSeek) + 's (elapsed:', Math.round(elapsedSec) + 's)');
+          } else if (attempts > 0) {
+            setTimeout(() => trySeek(attempts - 1), 500);
+          }
+        };
+        trySeek(20);
+      }
+    });
+    hls.on(Hls.Events.FRAG_BUFFERED, () => {
+      loader.classList.add('hidden');
+    });
     hls.on(Hls.Events.ERROR, (ev, d) => {
       if (d.fatal) {
         console.warn('HLS fatal error:', d.type, d.details);
@@ -893,8 +904,17 @@ function toggleFav(id) {
 // ── LOAD PLAYLIST ─────────────────────────
 async function loadPlaylist() {
   try {
-    const r    = await fetch('playlist.m3u');
-    const text = await r.text();
+    // Zkus nejdřív live playlist ze serveru, fallback na lokální soubor
+    let playlistText;
+    try {
+      const r = await fetch('/get-playlist');
+      if (r.ok) { playlistText = await r.text(); }
+      else { throw new Error('not ok'); }
+    } catch {
+      const r2 = await fetch('playlist.m3u');
+      playlistText = await r2.text();
+    }
+    const text = playlistText;
     const lines = text.split('\n');
     channelsData = [];
     for (let i = 0; i < lines.length; i++) {
