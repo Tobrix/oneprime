@@ -496,7 +496,7 @@ function seekLiveToWallTime(targetWallTime, progStart, progStop) {
 
   const isApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   let finalUrl = ch.dataset.url.replace('http://94.241.90.115:8889', '/oneplay');
-  finalUrl += `?utc=${startUnix}&lutc=${stopUnix}&_t=${Date.now()}`;
+  finalUrl += `?utc=${startUnix}&lutc=${stopUnix}}`;
 
   loader.classList.remove('hidden');
   video.pause();
