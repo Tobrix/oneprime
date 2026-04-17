@@ -697,31 +697,40 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
       video.play().catch(() => {});
       updatePlayIcon();
       buildQualMenu();
+
+      // Live shift: seek na aktuální pozici v pořadu
+      if (_isLiveShift) {
+        const progStartMs = currentArchiveData?._progStartMs;
+        if (progStartMs) {
+          const elapsedSec = Math.max(0, (Date.now() - progStartMs) / 1000 - 3);
+          const progDurSec = currentArchiveData._progStopMs
+            ? (currentArchiveData._progStopMs - progStartMs) / 1000
+            : 0;
+          const seekTo = progDurSec > 0 ? Math.min(elapsedSec, progDurSec - 5) : elapsedSec;
+          // Seekneme přímo — HLS.js načte správný segment bez ohledu na seekable range
+          video.currentTime = seekTo;
+          _liveShiftSeeked = true;
+          console.log('⏩ Live shift seek:', Math.round(seekTo) + 's / progDur:', Math.round(progDurSec) + 's');
+        }
+      }
     });
 
-    // Seek on first fragment buffered — seekable range is guaranteed to exist
     hls.on(Hls.Events.FRAG_BUFFERED, () => {
+      loader.classList.add('hidden');
+      // Pokud seek selhal při MANIFEST_PARSED (seekable ještě nebyl ready),
+      // zkusíme znovu při prvním buffered fragmentu
       if (_isLiveShift && !_liveShiftSeeked) {
         const progStartMs = currentArchiveData?._progStartMs;
         if (!progStartMs) return;
-        // elapsedSec = čas od začátku pořadu do teď
         const elapsedSec = Math.max(0, (Date.now() - progStartMs) / 1000 - 3);
-        const trySeek = (attempts) => {
-          if (video.seekable && video.seekable.length > 0) {
-            const maxSeek = video.seekable.end(0);
-            const seekTo = Math.min(elapsedSec, Math.max(0, maxSeek - 5));
-            video.currentTime = seekTo;
-            _liveShiftSeeked = true;
-            console.log('⏩ Live shift seek:', Math.round(seekTo) + 's /', Math.round(maxSeek) + 's (elapsed:', Math.round(elapsedSec) + 's)');
-          } else if (attempts > 0) {
-            setTimeout(() => trySeek(attempts - 1), 500);
-          }
-        };
-        trySeek(20);
+        const progDurSec = currentArchiveData._progStopMs
+          ? (currentArchiveData._progStopMs - progStartMs) / 1000
+          : 0;
+        const seekTo = progDurSec > 0 ? Math.min(elapsedSec, progDurSec - 5) : elapsedSec;
+        video.currentTime = seekTo;
+        _liveShiftSeeked = true;
+        console.log('⏩ Live shift seek (fallback FRAG_BUFFERED):', Math.round(seekTo) + 's');
       }
-    });
-    hls.on(Hls.Events.FRAG_BUFFERED, () => {
-      loader.classList.add('hidden');
     });
     hls.on(Hls.Events.ERROR, (ev, d) => {
       if (d.fatal) {
