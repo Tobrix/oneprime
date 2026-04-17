@@ -496,7 +496,7 @@ function seekLiveToWallTime(targetWallTime, progStart, progStop) {
 
   const isApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   let finalUrl = ch.dataset.url.replace('http://94.241.90.115:8889', '/oneplay');
-  finalUrl += `?utc=${startUnix}&lutc=${stopUnix}}`;
+  finalUrl += `?utc=${startUnix}&lutc=${stopUnix}`;
 
   loader.classList.remove('hidden');
   video.pause();
@@ -638,7 +638,7 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
     if (stopUnix <= startUnix) stopUnix = startUnix + 3600;
     stopUnix += 30 * 60; // 30min buffer so token doesn't expire
     const sep = finalUrl.includes('?') ? '&' : '?';
-    finalUrl += `${sep}utc=${startUnix}&lutc=${stopUnix}}`;
+    finalUrl += `${sep}utc=${startUnix}&lutc=${stopUnix}`;
   } else {
     // LIVE kanál — načíst stream od začátku aktuálního pořadu
     // Tím bude celý pořad v HLS bufferu a půjde volně přetáčet zpět
@@ -652,7 +652,7 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
         const progStartUnix = Math.floor(progStart.getTime() / 1000);
         const progStopUnix  = Math.floor(progStop.getTime() / 1000) + 30 * 60;
         const sep = finalUrl.includes('?') ? '&' : '?';
-        finalUrl += `${sep}utc=${progStartUnix}&lutc=${progStopUnix}}`;
+        finalUrl += `${sep}utc=${progStartUnix}&lutc=${progStopUnix}`;
         // Uložit info pro timeline — ale isArchive zůstane false (jsme live)
         currentArchiveData = {
           title:         chEl.dataset.title || '',
