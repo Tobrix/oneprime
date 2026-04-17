@@ -72,10 +72,7 @@ fastify.get('/epg-data', async (request, reply) => {
     return upcoming ? fmt(upcoming) : { title: 'Program není k dispozici' };
 });
 
-
 // ── PLAYLIST PROXY ────────────────────────
-// Stahuje playlist živě ze serveru 94.241.90.115:8889
-// Fallback: pokud selže, vrátí lokální playlist.m3u
 fastify.get('/get-playlist', async (request, reply) => {
     try {
         const res = await axios.get('http://94.241.90.115:8889/playlist', {
@@ -90,7 +87,6 @@ fastify.get('/get-playlist', async (request, reply) => {
         return reply.send(res.data);
     } catch (err) {
         console.warn('Playlist live fetch failed, using local fallback:', err.message);
-        // Fallback na lokální soubor
         try {
             const fs = require('fs');
             const local = fs.readFileSync(path.join(__dirname, 'playlist.m3u'), 'utf-8');
@@ -102,49 +98,39 @@ fastify.get('/get-playlist', async (request, reply) => {
     }
 });
 
-// ── STREAM PROXY ─────────────────────────
+// ── STREAM PROXY (stabilní @fastify/http-proxy) ───────────
+// Klíčové pro iOS a dlouhé HLS streamy — undici s neomezeným timeoutem
 const UPSTREAM = 'http://94.241.90.115:8889';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0';
 
-function registerProxy(prefix) {
-    fastify.all(`${prefix}/*`, async (request, reply) => {
-        const downstream = request.url.slice(prefix.length);
-        const upstreamUrl = UPSTREAM + downstream;
-        try {
-            const upRes = await axios({
-                method: 'GET',
-                url: upstreamUrl,
-                responseType: 'stream',
-                timeout: 0,
-                headers: {
-                    'host':       '94.241.90.115:8889',
-                    'user-agent': UA,
-                    'accept':     '*/*',
-                    'connection': 'keep-alive',
-                    ...(request.headers.range ? { range: request.headers.range } : {}),
-                },
-                maxRedirects: 5,
-            });
-            reply.code(upRes.status);
-            const skip = new Set(['transfer-encoding', 'connection', 'host']);
-            for (const [k, v] of Object.entries(upRes.headers)) {
-                if (!skip.has(k.toLowerCase())) reply.header(k, v);
-            }
-            reply.header('Access-Control-Allow-Origin', '*');
-            reply.header('Cache-Control', 'no-store');
-            return reply.send(upRes.data);
-        } catch (err) {
-            const code = err.response?.status || 502;
-            console.error(`[proxy ${prefix}] ${upstreamUrl} → ${code}: ${err.message}`);
-            return reply.code(code).send({ error: err.message });
+const proxyOpts = {
+    upstream: UPSTREAM,
+    replyOptions: {
+        rewriteRequestHeaders: (req, headers) => ({
+            ...headers,
+            'User-Agent': UA,
+            'host': '94.241.90.115:8889',
+            'connection': 'keep-alive',
+        }),
+        undici: {
+            bodyTimeout: 0,
+            headersTimeout: 0,
+            keepAliveTimeout: 60000,
         }
-    });
-}
+    }
+};
 
-registerProxy('/oneplay');
-registerProxy('/play');
+fastify.register(require('@fastify/http-proxy'), {
+    ...proxyOpts,
+    prefix: '/oneplay',
+});
 
-// Start
+fastify.register(require('@fastify/http-proxy'), {
+    ...proxyOpts,
+    prefix: '/play',
+});
+
+// ── START ─────────────────────────────────
 const start = async () => {
     try {
         const port = process.env.PORT || 3000;
