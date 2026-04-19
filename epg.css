@@ -31,9 +31,9 @@
   /* 90% wide, centered horizontally with 5% margin each side */
   left: 5%;
   right: 5%;
-  /* Positioned from top — "nahoře uprostřed" */
-  top: 6vh;
+  /* Vertically centered: same margin top & bottom */
   height: 75vh;
+  top: 12.5vh;  /* (100vh - 75vh) / 2 = 12.5vh → symmetric margins */
   /* Floating card look */
   border-radius: 20px;
   border: 1px solid rgba(99, 102, 241, 0.18);
@@ -782,8 +782,8 @@
   #epg-sheet {
     left: 3%;
     right: 3%;
-    top: 5vh;
     height: 78vh;
+    top: 11vh;   /* (100vh - 78vh) / 2 = 11vh → same margin top & bottom */
   }
 }
 
