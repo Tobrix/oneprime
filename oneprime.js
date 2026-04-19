@@ -143,17 +143,30 @@ function updatePlayIcon() {
   if (window.lucide) lucide.createIcons();
 }
 btnPlay.onclick = () => { video.paused ? video.play() : video.pause(); };
-video.onplay  = () => { updatePlayIcon(); resetInactivity(); flashCenter('play', false); };
-video.onpause = () => { updatePlayIcon(); showControls(); flashCenter('pause', true); };
+video.onplay  = () => { updatePlayIcon(); resetInactivity(); flashCenter('play'); };
+video.onpause = () => { updatePlayIcon(); showControls(); flashCenter('pause'); };
 
-function flashCenter(icon, stay = false) {
+function flashCenter(icon) {
   if (!centerIcon || !indCenter) return;
-  centerIcon.setAttribute('data-lucide', icon);
-  if (window.lucide) lucide.createIcons();
-  indCenter.classList.remove('animating');
-  void indCenter.offsetWidth;
-  indCenter.classList.add('animating');
-  if (!stay) setTimeout(() => indCenter.classList.remove('animating'), 600);
+  if (icon === 'pause') {
+    // Zastaveno: zobraz šipku a nechej ji viditelnou (stay)
+    centerIcon.setAttribute('data-lucide', 'play');
+    if (window.lucide) lucide.createIcons();
+    indCenter.classList.remove('animating', 'flash-play');
+    void indCenter.offsetWidth;
+    indCenter.classList.add('animating', 'stay-pause');
+  } else {
+    // Spuštěno: přepni na pause ikonu (2 čárky) a pak zmiz
+    indCenter.classList.remove('stay-pause');
+    centerIcon.setAttribute('data-lucide', 'pause');
+    if (window.lucide) lucide.createIcons();
+    indCenter.classList.remove('animating', 'flash-play');
+    void indCenter.offsetWidth;
+    indCenter.classList.add('animating', 'flash-play');
+    setTimeout(() => {
+      indCenter.classList.remove('animating', 'flash-play');
+    }, 700);
+  }
 }
 
 // ── SKIP ─────────────────────────────────
@@ -500,6 +513,7 @@ function seekLiveToWallTime(targetWallTime, progStart, progStop) {
 
   loader.classList.remove('hidden');
   video.pause();
+  stopIosWatchdog();
   if (!isApple) { video.src = ''; video.load(); }
   if (hls) { hls.destroy(); hls = null; }
 
@@ -738,17 +752,85 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
         loader.classList.add('hidden');
         if (d.type === Hls.ErrorTypes.NETWORK_ERROR) {
           setTimeout(() => { if (hls) hls.startLoad(); }, 2000);
+        } else if (d.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          hls.recoverMediaError();
         }
       }
     });
+    // hls.js stall recovery for archive
+    video.addEventListener('waiting', () => loader.classList.remove('hidden'));
+    video.addEventListener('playing', () => loader.classList.add('hidden'));
   } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    // iOS Safari native HLS — add stall watchdog for archive
     video.src = finalUrl;
     video.load();
     video.play().catch(() => {});
     updatePlayIcon();
+    startIosWatchdog(finalUrl);
   }
   video.onloadedmetadata = () => updateTimeline();
 }
+
+// ── iOS ARCHIVE STALL WATCHDOG ────────────────────────────
+// iOS Safari sometimes freezes archive streams after 2-5 min.
+// We detect stall via currentTime not advancing and recover.
+let _iosWatchdog = null;
+let _iosLastTime = -1;
+let _iosStallCount = 0;
+
+function startIosWatchdog(url) {
+  stopIosWatchdog();
+  if (!isArchive && !currentArchiveData) return; // only for archive/catchup
+  _iosLastTime = -1;
+  _iosStallCount = 0;
+  _iosWatchdog = setInterval(() => {
+    if (video.paused || video.ended) return;
+    const ct = video.currentTime;
+    if (_iosLastTime >= 0 && Math.abs(ct - _iosLastTime) < 0.1) {
+      _iosStallCount++;
+      console.warn('[iOS watchdog] stall detected, count:', _iosStallCount, 'ct:', ct);
+      if (_iosStallCount >= 3) {
+        // Stalled 3 ticks (~9s) → recover by seeking forward slightly
+        console.warn('[iOS watchdog] recovering stall via seek');
+        _iosStallCount = 0;
+        const seekTarget = Math.min(ct + 2, video.duration - 1);
+        if (isFinite(seekTarget) && seekTarget > ct) {
+          video.currentTime = seekTarget;
+        } else {
+          // Can't seek → reload from current position
+          const savedSrc = video.src;
+          video.src = savedSrc;
+          video.load();
+          video.play().catch(() => {});
+        }
+      }
+    } else {
+      _iosStallCount = 0;
+    }
+    _iosLastTime = ct;
+  }, 3000); // check every 3s
+}
+
+function stopIosWatchdog() {
+  if (_iosWatchdog) { clearInterval(_iosWatchdog); _iosWatchdog = null; }
+  _iosStallCount = 0; _iosLastTime = -1;
+}
+
+// Also add waiting event recovery for iOS archive
+video.addEventListener('waiting', () => {
+  loader.classList.remove('hidden');
+  // On iOS, if waiting too long in archive → nudge playback
+  if (isArchive && video.canPlayType('application/vnd.apple.mpegurl')) {
+    clearTimeout(video._waitTimeout);
+    video._waitTimeout = setTimeout(() => {
+      if (video.readyState < 3 && !video.paused) {
+        const ct = video.currentTime;
+        console.warn('[iOS] long wait in archive, nudging from', ct);
+        video.currentTime = ct + 0.5;
+      }
+    }, 5000);
+  }
+});
 
 video.addEventListener('ended', () => {
   if (isArchive) playNextProgram();
