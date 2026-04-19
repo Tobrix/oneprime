@@ -39,12 +39,20 @@ function getDayMidnight(dstr) {
 }
 
 // ── DAY TABS ──────────────────────────────
+function formatDay(offset) {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+
+  return `${d.getDate()}.${d.getMonth() + 1}.`;
+}
+
 function buildDayTabs() {
   const c = document.getElementById('epg-days');
   if (!c) return;
   c.innerHTML = '';
   const days = [
-    { label: 'Předevčírem', str: dayStr(-2) },
+    { label: formatDay(-3), str: dayStr(-3) },
+    { label: formatDay(-2), str: dayStr(-2) },
     { label: 'Včera', str: dayStr(-1) },
     { label: 'Dnes',  str: dayStr(0)  },
     { label: 'Zítra', str: dayStr(1)  },
