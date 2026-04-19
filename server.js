@@ -16,7 +16,7 @@ let cachedEpg = [];
 async function updateEpg() {
     try {
         console.log('⏳ Stahuji EPG...');
-        const res = await axios.get('https://script-oneplay-server-master.fly.dev/epg', { timeout: 30000 });
+        const res = await axios.get('http://94.241.90.115:8889/epg', { timeout: 30000 });
         const result = await new xml2js.Parser().parseStringPromise(res.data);
         if (result.tv?.programme) {
             cachedEpg = result.tv.programme;
@@ -75,7 +75,7 @@ fastify.get('/epg-data', async (request, reply) => {
 // ── PLAYLIST PROXY ────────────────────────
 fastify.get('/get-playlist', async (request, reply) => {
     try {
-        const res = await axios.get('https://script-oneplay-server-master.fly.dev/playlist', {
+        const res = await axios.get('http://94.241.90.115:8889/playlist', {
             timeout: 10000,
             responseType: 'text',
             headers: {
@@ -100,7 +100,7 @@ fastify.get('/get-playlist', async (request, reply) => {
 
 // ── STREAM PROXY (stabilní @fastify/http-proxy) ───────────
 // Klíčové pro iOS a dlouhé HLS streamy — undici s neomezeným timeoutem
-const UPSTREAM = 'https://script-oneplay-server-master.fly.dev';
+const UPSTREAM = 'http://94.241.90.115:8889';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0) Gecko/20100101 Firefox/142.0';
 
 const proxyOpts = {
