@@ -125,6 +125,22 @@ input{outline:none;border:none;color:inherit;font:inherit;background:none;}
   border-color: rgba(99,102,241,.4);
 }
 .tap-indicator.animating{opacity:1;}
+
+/* Center icon: stay visible when paused */
+#ind-center.stay-pause{
+  opacity:1;
+  animation:none;
+}
+/* Center icon: flash pause icon then fade out when play starts */
+#ind-center.flash-play{
+  opacity:1;
+  animation:flashFade 0.7s ease-out forwards;
+}
+@keyframes flashFade{
+  0%{opacity:1;transform:translate(-50%,-50%) scale(1.1);}
+  40%{opacity:1;transform:translate(-50%,-50%) scale(1);}
+  100%{opacity:0;transform:translate(-50%,-50%) scale(0.85);}
+}
 .tap-indicator svg{width:20px;height:20px;}
 .tap-indicator span{font-size:.65rem;font-weight:700;letter-spacing:.04em;}
 
