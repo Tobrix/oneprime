@@ -495,7 +495,7 @@ function seekLiveToWallTime(targetWallTime, progStart, progStop) {
   };
 
   const isApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  let finalUrl = ch.dataset.url.replace('http://94.241.90.115:8889', '/oneplay');
+  let finalUrl = ch.dataset.url.replace('http://94.241.90.115:8889', 'https://script-oneplay-server-master.fly.dev');
   finalUrl += `?utc=${startUnix}&lutc=${stopUnix}`;
 
   loader.classList.remove('hidden');
@@ -624,7 +624,7 @@ function playStream(url, name, logo, channelId, startUnix = null, archiveData = 
   document.querySelectorAll('.ch-item').forEach(el => el.classList.toggle('active', el.dataset.id === channelId));
 
   const isApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  let finalUrl = url.replace('http://94.241.90.115:8889', '/oneplay');
+  let finalUrl = url.replace('http://94.241.90.115:8889', 'https://script-oneplay-server-master.fly.dev');
 
   if (startUnix) {
     // Archive / EPG seek: load from specific time
