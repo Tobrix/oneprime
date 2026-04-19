@@ -44,6 +44,7 @@ function buildDayTabs() {
   if (!c) return;
   c.innerHTML = '';
   const days = [
+    { label: 'Předevčírem', str: dayStr(-2) },
     { label: 'Včera', str: dayStr(-1) },
     { label: 'Dnes',  str: dayStr(0)  },
     { label: 'Zítra', str: dayStr(1)  },
