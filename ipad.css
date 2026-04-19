@@ -1,13 +1,19 @@
 /* ── IPAD LANDSCAPE ──────────────────────── */
 @media only screen and (min-device-width:768px) and (max-device-width:1366px) and (orientation:landscape){
   #channels-panel{width:320px;}
-  #epg-sheet{height:60vh;}
+  #epg-sheet{
+    height: 60vh;
+    top: 20vh;  /* (100vh - 60vh) / 2 = 20vh → same margin top & bottom */
+  }
 }
 
 /* ── IPAD PORTRAIT ───────────────────────── */
 @media only screen and (min-device-width:768px) and (max-device-width:1366px) and (orientation:portrait){
   #channels-panel{width:100vw;}
-  #epg-sheet{height:65vh;}
+  #epg-sheet{
+    height: 65vh;
+    top: 17.5vh;  /* (100vh - 65vh) / 2 = 17.5vh → same margin top & bottom */
+  }
   #topbar{padding-top:calc(env(safe-area-inset-top) + 16px);}
   #bottombar{padding-bottom:calc(env(safe-area-inset-bottom) + 20px);}
 }
