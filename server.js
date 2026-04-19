@@ -115,7 +115,7 @@ const proxyOpts = {
         undici: {
             bodyTimeout: 0,
             headersTimeout: 0,
-            keepAliveTimeout: 60000,
+            keepAliveTimeout: 120000,
         }
     }
 };
@@ -128,6 +128,17 @@ fastify.register(require('@fastify/http-proxy'), {
 fastify.register(require('@fastify/http-proxy'), {
     ...proxyOpts,
     prefix: '/play',
+});
+
+// ── ROUTES ───────────────────────────────────
+// Serve oneprime.html at root (/) — no redirect, URL stays clean
+fastify.get('/', async (request, reply) => {
+    return reply.sendFile('oneprime.html');
+});
+
+// Also serve at /oneprime and /oneprime.html
+fastify.get('/oneprime', async (request, reply) => {
+    return reply.sendFile('oneprime.html');
 });
 
 // ── START ─────────────────────────────────
