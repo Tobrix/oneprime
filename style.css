@@ -127,6 +127,15 @@ input{outline:none;border:none;color:inherit;font:inherit;background:none;}
 .tap-indicator.animating{opacity:1;}
 
 /* Center icon: stay visible when paused */
+/* SVG icons inside center indicator */
+#ind-center svg {
+  width: 28px;
+  height: 28px;
+  color: #fff;
+  display: block;
+  flex-shrink: 0;
+}
+
 #ind-center.stay-pause{
   opacity:1;
   animation:none;
