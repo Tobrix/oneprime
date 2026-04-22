@@ -146,20 +146,22 @@ btnPlay.onclick = () => { video.paused ? video.play() : video.pause(); };
 video.onplay  = () => { updatePlayIcon(); resetInactivity(); flashCenter('play'); };
 video.onpause = () => { updatePlayIcon(); showControls(); flashCenter('pause'); };
 
+// SVG ikony přímé — Lucide createIcons nefunguje spolehlivě po init
+const _SVG_PLAY  = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>';
+const _SVG_PAUSE = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="3" width="4" height="18" rx="1"/><rect x="15" y="3" width="4" height="18" rx="1"/></svg>';
+
 function flashCenter(icon) {
-  if (!centerIcon || !indCenter) return;
+  if (!indCenter) return;
   if (icon === 'pause') {
-    // Zastaveno: zobraz šipku a nechej ji viditelnou (stay)
-    centerIcon.setAttribute('data-lucide', 'play');
-    if (window.lucide) lucide.createIcons();
-    indCenter.classList.remove('animating', 'flash-play');
+    // Zastaveno: zobraz šipku ▶ a nechej ji viditelnou
+    indCenter.innerHTML = _SVG_PLAY;
+    indCenter.classList.remove('animating', 'flash-play', 'stay-pause');
     void indCenter.offsetWidth;
     indCenter.classList.add('animating', 'stay-pause');
   } else {
-    // Spuštěno: přepni na pause ikonu (2 čárky) a pak zmiz
+    // Spuštěno: zobraz ⏸ a pak plynule zmiz
     indCenter.classList.remove('stay-pause');
-    centerIcon.setAttribute('data-lucide', 'pause');
-    if (window.lucide) lucide.createIcons();
+    indCenter.innerHTML = _SVG_PAUSE;
     indCenter.classList.remove('animating', 'flash-play');
     void indCenter.offsetWidth;
     indCenter.classList.add('animating', 'flash-play');
